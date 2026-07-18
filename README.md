@@ -2,7 +2,8 @@
 
 Agentic estimation and solutioning engine. Takes a PRD plus client context (tech
 stack, compliance posture, team skills) and produces a reference architecture,
-effort estimate, and cost model — compressing the discovery-to-SOW cycle.
+effort estimate, cost model, and deal-shaping scenarios — compressing the
+discovery-to-SOW cycle.
 
 Built architecture-first around a **Solution Graph**
 (`requirements → capabilities → components → work items → effort → team → cost`):
@@ -10,44 +11,72 @@ every artifact is a projection of one object. See
 [`architect-iq-context.md`](architect-iq-context.md) for the spec and
 [`DECISIONS.md`](DECISIONS.md) for judgment calls.
 
-> **Status: Phase 1.** Full-stack app; the vertical slice runs end to end. The
-> estimation math is real (PERT, PERT-beta Monte Carlo, top-down/bottom-up
-> reconciliation, pattern-prior calibration); several ingest/sizing steps are
-> skeleton-depth and marked for deepening (see DECISIONS.md D11).
-
 ## Features
 
-- **Architecture-first estimates** — PRD + client context matched to a reference
-  pattern (RAG on Databricks, .NET modernization, agentic-on-MCP), instantiated
-  into components, work items, effort, team, and cost.
-- **Context ingestion** — drag-and-drop or paste. Handles `.md/.txt`, `.docx`,
-  `.pdf`, `.xlsx`, `.csv`, and images (Claude vision when `ANTHROPIC_API_KEY` is set).
-- **Monte Carlo ranges** — P10/P50/P80/P90 for effort, duration, and cost.
-- **Two-sided reconciliation** — top-down parametric vs bottom-up rollup; divergence is the diagnostic.
-- **Interactive deal-shaping** — AI-boost and team sliders recompute live; every edit is a new version.
-- **Loadable rate cards** — upload roles-and-rates (CSV/XLSX/YAML) to model a
-  leverage model and re-cost estimates. Examples in [`examples/`](examples/).
-- **Memory** — reference-class retrieval surfaces similar past estimates; pattern
-  priors self-tune from past estimates and recorded actuals.
-- **Client-safe mode** — hide pricing for orals.
-- **Demo mode** — `npm run demo` auto-loads curated sample data covering every feature.
+**Estimation**
+- Architecture-first: PRD + client context matched to a reference pattern
+  (RAG on Databricks, .NET modernization, agentic-on-MCP), instantiated into
+  components, work items, effort, team, and cost.
+- Monte Carlo ranges (PERT-beta): P10/P50/P80/P90 for effort, duration, and cost.
+- Two-sided reconciliation: top-down parametric vs bottom-up rollup; divergence flagged.
+- Sub-linear team velocity (diminishing returns) so more engineers shorten the
+  timeline without looking artificially cheaper.
+
+**Context ingestion**
+- Drag-and-drop or paste: `.md/.txt`, `.docx`, `.pdf`, `.xlsx`, `.csv`, and images.
+- With an API key, Claude extracts requirements, derives capabilities, matches
+  patterns, and reads architecture diagrams / requirement images (vision).
+  Without a key, deterministic heuristics run the whole pipeline.
+
+**Scenarios & advisor**
+- Multiple staffing/development models per estimate — traditional vs AI-assisted
+  vs agentic; US / nearshore / blended — computed and compared side by side.
+- Optimization advisor suggests cheaper/faster team models (with real numbers)
+  and features to defer to a later release, grounded in historical estimates.
+
+**Rate cards & deal-shaping**
+- Multiple saved rate cards (one active, one default); upload `.csv/.xlsx/.yaml`.
+- Interactive sliders (AI boost, team size) recompute live; re-cost under any card.
+- Client-safe orals mode hides pricing.
+
+**Memory (gets better over time)**
+- Versioned Solution Graphs persist every estimate and edit.
+- Reference-class retrieval surfaces similar past estimates; pattern priors
+  self-tune from past estimates and recorded delivery actuals.
+
+**Demo mode** — `npm run demo` auto-loads curated sample data covering every feature.
 
 ## Architecture
 
 | Layer | Location | What it does |
 |-------|----------|--------------|
-| Core engine | `src/architect_iq/core/` | matcher, estimation, Monte Carlo, recompute, rates, vision |
-| Models | `src/architect_iq/models/` | Solution Graph nodes/edges, work items, patterns |
-| Data (versioned) | `src/architect_iq/data/` | t-shirt scale, variables, complexity factors, patterns, pricing |
-| Persistence | `src/architect_iq/persistence/` | SQLite, versioned Solution Graphs |
+| Core engine | `src/architect_iq/core/` | matcher, estimation, Monte Carlo, recompute, scenarios, advisor, rates, velocity, vision, llm |
+| Models | `src/architect_iq/models/` | Solution Graph, work items, patterns, scenarios |
+| Data (versioned) | `src/architect_iq/data/` | t-shirt scale, variables, complexity factors, patterns, dev models, pricing |
+| Persistence | `src/architect_iq/persistence/` | SQLite: versioned graphs + rate cards |
 | Memory | `src/architect_iq/memory/` | reference-class retrieval + pattern-prior tuning |
-| Demo | `src/architect_iq/demo.py` | curated sample data seeding |
 | API | `src/architect_iq/api/` | FastAPI |
 | Frontend | `frontend/` | React + TypeScript + Tailwind (Vite) |
 
-## Run it
+## Configuration
 
-Backend (Python 3.12; this repo uses [`uv`](https://docs.astral.sh/uv/)):
+Copy [`.env.example`](.env.example) to `.env` (gitignored) and set values:
+
+| Variable | Purpose |
+|----------|---------|
+| `ANTHROPIC_API_KEY` | Enables LLM ingest/matching/advisor and image vision. Omitted → deterministic fallback. |
+| `ARCHITECTIQ_LLM_MODEL` | Override the Claude model (default `claude-sonnet-5`). |
+| `ARCHITECTIQ_DISABLE_LLM` | Force the deterministic path even with a key. |
+| `ARCHITECTIQ_DB` | SQLite path (default `architect_iq.db`). |
+| `ARCHITECTIQ_CORS` | Allowed API origins (comma-separated). |
+
+Real pricing is never committed: `data/pricing.local.yaml` (gitignored) overrides
+the committed placeholder `pricing.example.yaml`. You can also manage rate cards
+at runtime in the **Rates** tab. Schema: [`data/SCHEMA.md`](src/architect_iq/data/SCHEMA.md).
+
+## Local development
+
+Backend — Python 3.12 (this repo uses [`uv`](https://docs.astral.sh/uv/)):
 
 ```bash
 uv venv --python 3.12
@@ -55,31 +84,56 @@ uv pip install -e ".[dev]"
 .venv/bin/python -m uvicorn architect_iq.api.app:app --port 8000 --reload
 ```
 
-Frontend (proxies `/api` to `:8000`):
+Frontend — proxies `/api` to `:8000`:
 
 ```bash
 cd frontend
 npm install
-npm run dev     # normal app
-npm run demo    # demo mode: auto-loads sample data, exercises every feature
-npm run prod    # production build + preview
+npm run dev      # normal app
+npm run demo     # demo mode (auto-loads sample data)
 ```
 
 Tests:
 
 ```bash
-.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -q          # backend
+cd frontend && npx tsc -b              # frontend typecheck
 ```
 
-## Pricing
+## Deployment
 
-Real day rates are **never committed**. `src/architect_iq/data/pricing.local.yaml`
-(gitignored) holds real rates; `pricing.example.yaml` ships placeholder rates so
-the engine runs out of the box. At runtime you can also upload a rate card in the
-**Rates** tab. Schema in [`data/SCHEMA.md`](src/architect_iq/data/SCHEMA.md).
+Frontend and backend deploy as two processes; the frontend is static files, the
+backend is an ASGI app.
+
+**1. Build the frontend** (static bundle in `frontend/dist/`):
+
+```bash
+cd frontend && npm ci && npm run build
+```
+
+Serve `frontend/dist/` from any static host (S3+CloudFront, Nginx, Netlify, etc.),
+or with `npm run prod` for a local production preview. Point the frontend's `/api`
+at the backend (reverse-proxy `/api` to the backend host, or set an API base URL).
+
+**2. Run the backend** (no `--reload` in production; use multiple workers):
+
+```bash
+uv pip install -e .            # or: pip install .
+uvicorn architect_iq.api.app:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+Set `ARCHITECTIQ_CORS` to the frontend origin, provide `.env` (or real env vars)
+with `ANTHROPIC_API_KEY` and a persistent `ARCHITECTIQ_DB` path (mount a volume so
+estimates and rate cards survive restarts — this is the memory that improves the
+model over time). Put both behind TLS.
+
+**Notes**
+- SQLite suits a single backend instance / small team. For multi-instance, move to
+  Postgres behind the same repository interface (`persistence/`).
+- The engine runs fully without an API key (deterministic path); add the key to
+  enable the LLM features.
 
 ## Not yet built (later phases)
 
-LLM-backed ingest/matching (beyond the vision path), the `architectiq` CLI, the
-xlsx/summary emitters, the skill wrapper, and the deepened estimation math
-(DECISIONS.md D11).
+The `architectiq` CLI, xlsx/summary emitters, the Claude skill wrapper, and deeper
+per-item sizing. See DECISIONS.md D11 for remaining skeleton-depth items.

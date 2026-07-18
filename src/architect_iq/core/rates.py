@@ -32,6 +32,22 @@ class RateCard:
             or 0.0
         )
 
+    def blended_rate(self, discipline: str, tier: str, mix: dict[str, float]) -> float:
+        """Weighted day rate across a location mix, e.g. {'US': 0.6, 'NS': 0.4}."""
+        if not mix:
+            return self.rate_for(discipline, tier, Location.US)
+        total = 0.0
+        weight = 0.0
+        for loc, w in mix.items():
+            try:
+                location = Location(str(loc).upper())
+            except ValueError:
+                continue
+            rate = self._index.get((discipline, tier, location)) or self._index.get((discipline, tier, Location.US)) or 0.0
+            total += rate * w
+            weight += w
+        return total / weight if weight else 0.0
+
     def summary(self) -> dict:
         return {
             "rows": len(self.rows),

@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 import os
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -21,6 +21,7 @@ from ..emit.mermaid import architecture_mermaid
 from ..memory.priors import ActualOutcome
 from ..memory.retrieval import Reference
 from ..models.results import ClientContext
+from ..models.scenario import Scenario
 from ..models.solution_graph import SolutionGraph
 from ..service import EstimateService
 
@@ -291,18 +292,61 @@ def get_rates() -> dict:
     }
 
 
-@app.post("/api/rates")
-async def upload_rates(file: UploadFile = File(...)) -> dict:
-    """Load a roles-and-rates file (.csv/.xlsx/.yaml) as the active rate card."""
-    from ..core.rates import RateCard, parse_rate_file
+def _card_dict(card, include_rows: bool = False) -> dict:
+    from ..core.rates import RateCard
+
+    out = {
+        "id": card.id,
+        "name": card.name,
+        "is_default": card.is_default,
+        "is_active": card.is_active,
+        "summary": RateCard(card.rows).summary(),
+    }
+    if include_rows:
+        out["rates"] = [
+            {"discipline": r.discipline, "tier": r.tier, "location": r.location.value, "day_rate": r.day_rate}
+            for r in card.rows
+        ]
+    return out
+
+
+@app.get("/api/rate-cards")
+def list_rate_cards() -> list[dict]:
+    """All saved rate cards (one active, one default)."""
+    return [_card_dict(c) for c in service.list_rate_cards()]
+
+
+@app.post("/api/rate-cards")
+async def create_rate_card(file: UploadFile = File(...), name: str = Form(None)) -> dict:
+    """Save a rate card from a file (.csv/.xlsx/.yaml) and make it active."""
+    from ..core.rates import parse_rate_file
 
     raw = await file.read()
     try:
         rows = parse_rate_file(raw, file.filename or "rates")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    service.set_rate_card(rows)
-    return {"status": "loaded", "source": "custom-upload", "summary": RateCard(rows).summary()}
+    card = service.create_rate_card(name or (file.filename or "Rate card"), rows)
+    return _card_dict(card, include_rows=True)
+
+
+@app.post("/api/rate-cards/{card_id}/activate")
+def activate_rate_card(card_id: str) -> dict:
+    try:
+        return _card_dict(service.activate_rate_card(card_id), include_rows=True)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="rate card not found")
+
+
+@app.delete("/api/rate-cards/{card_id}")
+def delete_rate_card(card_id: str) -> dict:
+    try:
+        service.delete_rate_card(card_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="rate card not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "deleted", "id": card_id}
 
 
 @app.post("/api/estimates/{estimate_id}/recost", response_model=EstimateResponse)
@@ -313,6 +357,43 @@ def recost_estimate(estimate_id: str) -> EstimateResponse:
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
     return _to_response(saved.estimate_id, saved.version, saved.graph)
+
+
+@app.get("/api/dev-models")
+def list_dev_models() -> list[dict]:
+    models, _ = data_loader.load_dev_models()
+    return [
+        {"key": k, "name": m["name"], "ai_boost": m["ai_boost"],
+         "effort_multiplier": m["effort_multiplier"], "assumptions": m.get("assumptions", [])}
+        for k, m in models.items()
+    ]
+
+
+class ScenariosRequest(BaseModel):
+    scenarios: list[Scenario] | None = None
+
+
+@app.post("/api/estimates/{estimate_id}/scenarios", response_model=EstimateResponse)
+def compute_scenarios_endpoint(estimate_id: str, req: ScenariosRequest) -> EstimateResponse:
+    """Compute staffing/dev-model scenarios (defaults if none given) and persist."""
+    try:
+        saved = service.compute_scenarios(estimate_id, req.scenarios)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="estimate not found")
+    return _to_response(saved.estimate_id, saved.version, saved.graph)
+
+
+@app.post("/api/estimates/{estimate_id}/suggestions")
+def suggestions_endpoint(estimate_id: str) -> dict:
+    """Advisor: cheaper/faster team models and scope deferrals (history-grounded)."""
+    try:
+        result = service.suggest(estimate_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="estimate not found")
+    return {
+        "team": [t.model_dump() for t in result["team"]],
+        "deferrals": [d.model_dump() for d in result["deferrals"]],
+    }
 
 
 @app.post("/api/estimates/{estimate_id}/actuals")

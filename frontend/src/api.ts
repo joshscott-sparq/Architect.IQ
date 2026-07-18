@@ -78,16 +78,51 @@ export const api = {
       }>(r)
     ),
 
-  uploadRates: (file: File) => {
+  listRateCards: () =>
+    fetch("/api/rate-cards").then((r) =>
+      json<
+        {
+          id: string;
+          name: string;
+          is_default: boolean;
+          is_active: boolean;
+          summary: { rows: number; disciplines: string[]; locations: string[] };
+        }[]
+      >(r)
+    ),
+
+  createRateCard: (file: File, name: string) => {
     const form = new FormData();
     form.append("file", file);
-    return fetch("/api/rates", { method: "POST", body: form }).then((r) =>
-      json<{ status: string; source: string; summary: { rows: number } }>(r)
+    if (name) form.append("name", name);
+    return fetch("/api/rate-cards", { method: "POST", body: form }).then((r) =>
+      json<{ id: string; name: string }>(r)
     );
   },
+
+  activateRateCard: (id: string) =>
+    fetch(`/api/rate-cards/${id}/activate`, { method: "POST" }).then((r) => json<unknown>(r)),
+
+  deleteRateCard: (id: string) =>
+    fetch(`/api/rate-cards/${id}`, { method: "DELETE" }).then((r) => json<unknown>(r)),
 
   recost: (id: string) =>
     fetch(`/api/estimates/${id}/recost`, { method: "POST" }).then((r) =>
       json<EstimateResponse>(r)
+    ),
+
+  computeScenarios: (id: string) =>
+    fetch(`/api/estimates/${id}/scenarios`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).then((r) => json<EstimateResponse>(r)),
+
+  suggestions: (id: string) =>
+    fetch(`/api/estimates/${id}/suggestions`, { method: "POST" }).then((r) =>
+      json<{
+        team: import("./types").TeamSuggestion[];
+        deferrals: import("./types").DeferralSuggestion[];
+      }>(r)
     ),
 };

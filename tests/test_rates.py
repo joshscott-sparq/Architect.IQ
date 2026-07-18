@@ -39,14 +39,14 @@ def test_parse_yaml_rates():
 
 def test_recost_changes_price_not_effort(tmp_path):
     svc = EstimateService(repo=SQLiteEstimateRepository(tmp_path / "r.db"))
-    svc.set_rate_card(parse_rate_file(ONSHORE, "onshore.csv"))
+    svc.create_rate_card("onshore", parse_rate_file(ONSHORE, "onshore.csv"))
     stored, _ = svc.create_estimate("RAG", RAG_PRD, ClientContext(tech_stack=["Databricks"]))
     onshore_cost = stored.graph.deterministic.total_cost
     effort = stored.graph.monte_carlo.effort_points.p50
     duration = stored.graph.monte_carlo.duration_sprints.p50
 
     # Switch to the cheaper blended leverage card and re-cost.
-    svc.set_rate_card(parse_rate_file(BLENDED, "blended.csv"))
+    svc.create_rate_card("blended", parse_rate_file(BLENDED, "blended.csv"))
     repriced = svc.recost_estimate(stored.estimate_id)
     assert repriced.version == 2
     # Cheaper card -> lower cost; effort and duration unchanged.
@@ -66,17 +66,34 @@ def client(tmp_path, monkeypatch):
     return TestClient(app_module.app)
 
 
-def test_rates_api_roundtrip(client):
-    # Default card present.
-    assert client.get("/api/rates").json()["source"].endswith(".yaml")
+def test_rate_card_management(client):
+    # A seeded default card exists and is active.
+    cards = client.get("/api/rate-cards").json()
+    assert len(cards) == 1
+    default = cards[0]
+    assert default["is_default"] and default["is_active"]
 
-    # Upload a custom card.
-    up = client.post("/api/rates", files={"file": ("onshore.csv", ONSHORE, "text/csv")})
+    # Upload a new card -> saved and becomes active; default no longer active.
+    up = client.post("/api/rate-cards", files={"file": ("onshore.csv", ONSHORE, "text/csv")}, data={"name": "Onshore"})
     assert up.status_code == 200, up.text
-    assert up.json()["summary"]["rows"] == 2
-    assert client.get("/api/rates").json()["source"] == "custom-upload"
+    new_id = up.json()["id"]
+    cards = client.get("/api/rate-cards").json()
+    assert len(cards) == 2
+    active = [c for c in cards if c["is_active"]]
+    assert len(active) == 1 and active[0]["id"] == new_id
 
-    # Create then re-cost.
+    # Re-activate the default.
+    client.post(f"/api/rate-cards/{default['id']}/activate")
+    assert client.get("/api/rates").json()["source"] == default["name"]
+
+    # Default cannot be deleted; the custom card can.
+    assert client.delete(f"/api/rate-cards/{default['id']}").status_code == 400
+    assert client.delete(f"/api/rate-cards/{new_id}").status_code == 200
+    assert len(client.get("/api/rate-cards").json()) == 1
+
+
+def test_recost_uses_active_card(client):
+    client.post("/api/rate-cards", files={"file": ("onshore.csv", ONSHORE, "text/csv")}, data={"name": "Onshore"})
     created = client.post("/api/estimates", json={
         "project_name": "RAG", "prd_text": RAG_PRD,
         "client_context": {"tech_stack": ["Databricks"]},

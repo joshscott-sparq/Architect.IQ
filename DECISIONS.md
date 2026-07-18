@@ -56,6 +56,40 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D17. Multiple saved rate cards (one active, one default)
+**Call:** Rate cards are persisted in SQLite (shared DB): multiple named cards,
+exactly one active, one default (seeded from the placeholder pricing file). The
+active card feeds estimate build, re-cost, and scenarios. Default cannot be
+deleted; deleting the active card reverts to default. Cards hold
+(discipline, tier, location, day_rate) rows.
+**Why:** Owner asked for multiple saved cards with one active and one default,
+each carrying role/location/rate — replacing the earlier single in-memory card.
+
+## D16. Scenarios + optimization advisor
+**Call:** Each estimate can compute multiple named scenarios (Scenario +
+ScenarioResult) over the same work breakdown: development model (traditional /
+ai-assisted / agentic, from `dev_models.yaml` — ai_boost + effort_multiplier) and
+location mix (US / NS / blended, via RateCard.blended_rate). An advisor
+(`core/advisor.py`) suggests cheaper/faster team models (computed for real
+numbers) and features to defer to a later release, LLM-primary with heuristic
+fallback, grounded in historical estimates (reference class) so it improves as
+engagements accumulate.
+**Why:** Owner asked that each estimate handle multiple staffing/development
+models with assumptions, that the LLM suggest cheaper/faster team models and
+deferrable features, and that historical estimates train the suggestion engine.
+
+## D15. LLM ingest/matching + .env; cost model
+**Call:** LLM layer (`core/llm.py`, injectable client) does requirement
+extraction, capability derivation, and pattern ranking; each falls back to a
+deterministic heuristic on no-key/error. Enabled by `ANTHROPIC_API_KEY` (loaded
+from `.env` via python-dotenv); `ARCHITECTIQ_DISABLE_LLM` forces the heuristic
+path, `ARCHITECTIQ_LLM_MODEL` overrides the model. Team velocity now scales
+sub-linearly with headcount (`core/velocity.py`, Brooks exponent 0.85) and the
+engineer-count knob scales team allocations, so adding engineers shortens the
+timeline without looking strictly cheaper (fixes the D11 bug).
+**Why:** Owner asked to wire the LLM layer, add an env setting for the API key,
+and fix the engineer-count cost model.
+
 ## D14. Frontend styling: Tailwind CSS v4
 **Call:** Frontend uses Tailwind CSS v4 (via `@tailwindcss/vite`), with the Sparq
 brand palette declared as `@theme` tokens (`brand-orange`, `brand-green`,

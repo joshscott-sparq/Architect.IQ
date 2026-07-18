@@ -4,16 +4,20 @@ import { api } from "../api";
 const money = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
+type Cards = Awaited<ReturnType<typeof api.listRateCards>>;
 type Rates = Awaited<ReturnType<typeof api.getRates>>;
 
 export function RatesView() {
-  const [rates, setRates] = useState<Rates | null>(null);
+  const [cards, setCards] = useState<Cards | null>(null);
+  const [active, setActive] = useState<Rates | null>(null);
+  const [name, setName] = useState("");
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
-    api.getRates().then(setRates).catch((e) => setError(String(e)));
+    api.listRateCards().then(setCards).catch((e) => setError(String(e)));
+    api.getRates().then(setActive).catch(() => {});
   }
   useEffect(refresh, []);
 
@@ -22,7 +26,8 @@ export function RatesView() {
     setBusy(true);
     setError(null);
     try {
-      await api.uploadRates(files[0]);
+      await api.createRateCard(files[0], name || files[0].name);
+      setName("");
       refresh();
     } catch (e) {
       setError(String(e));
@@ -31,48 +36,68 @@ export function RatesView() {
     }
   }
 
+  async function activate(id: string) {
+    await api.activateRateCard(id);
+    refresh();
+  }
+  async function remove(id: string) {
+    try {
+      await api.deleteRateCard(id);
+      refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <div>
         <div className="card">
-          <h2 className="card-h">Rate card</h2>
+          <h2 className="card-h">Rate cards</h2>
           <p className="text-[13px] text-muted mt-0">
-            Load a roles-and-rates file (.csv, .xlsx, .yaml) to model a different leverage model and reprice
-            estimates. New estimates use the active card; open an estimate and choose “Re-cost” to reprice it.
+            Save multiple rate cards; one is active and one is the default. Estimates use the active card;
+            re-cost an estimate to apply a change. Each row is role, tier, location, and rate.
           </p>
+          {cards?.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 py-2 border-b border-line last:border-0 text-[13px]">
+              <div className="flex-1">
+                <b>{c.name}</b>
+                {c.is_default && <span className="badge bg-brand-mint text-brand-sage ml-1.5">default</span>}
+                {c.is_active && <span className="badge bg-brand-aurora text-brand-deepest ml-1.5">active</span>}
+                <div className="text-muted text-[11px]">{c.summary.rows} rows · {c.summary.locations.join("/")}</div>
+              </div>
+              {!c.is_active && <button className="btn text-[12px] py-1" onClick={() => activate(c.id)}>Activate</button>}
+              {!c.is_default && <button className="btn text-[12px] py-1" onClick={() => remove(c.id)}>Delete</button>}
+            </div>
+          ))}
+        </div>
+
+        <div className="card">
+          <h2 className="card-h">Add a rate card</h2>
+          <label className="label">Name</label>
+          <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. FY26 Onshore" />
           <div
             className={
-              "border-2 border-dashed rounded-xl p-7 text-center transition-colors mt-2 " +
+              "border-2 border-dashed rounded-xl p-6 text-center transition-colors mt-3 " +
               (drag ? "border-brand-orange bg-orange-50 text-brand-orange" : "border-line text-muted bg-[#fdfcfb]")
             }
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={(e) => { e.preventDefault(); setDrag(false); upload(e.dataTransfer.files); }}
           >
-            Drag &amp; drop a rate card — columns: discipline, tier, location, day_rate
-            <div className="mt-2">
-              <input type="file" accept=".csv,.xlsx,.yaml,.yml" onChange={(e) => upload(e.target.files)} />
-            </div>
+            Drag &amp; drop .csv / .xlsx / .yaml — columns: discipline, tier, location, day_rate
+            <div className="mt-2"><input type="file" accept=".csv,.xlsx,.yaml,.yml" onChange={(e) => upload(e.target.files)} /></div>
           </div>
-          {busy && <div className="text-muted text-sm mt-2">Loading…</div>}
+          {busy && <div className="text-muted text-sm mt-2">Saving…</div>}
           {error && <div className="text-brand-orange-deep text-[13px] mt-2">{error}</div>}
-          {rates && (
-            <div className="mt-3 text-[13px]">
-              <span className="badge bg-brand-mint text-brand-sage">source: {rates.source}</span>{" "}
-              <span className="text-muted">
-                {rates.summary.rows} rows · {rates.summary.disciplines.length} disciplines ·{" "}
-                {rates.summary.locations.join("/")}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
       <div>
         <div className="card">
-          <h2 className="card-h">Active rates</h2>
-          {rates && (
-            <div className="max-h-[520px] overflow-y-auto">
+          <h2 className="card-h">Active card{active ? ` · ${active.source}` : ""}</h2>
+          {active && (
+            <div className="max-h-[560px] overflow-y-auto">
               <table className="w-full border-collapse text-[13px]">
                 <thead>
                   <tr className="text-muted">
@@ -83,7 +108,7 @@ export function RatesView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rates.rates.map((r, i) => (
+                  {active.rates.map((r, i) => (
                     <tr key={i}>
                       <td className="py-1.5 px-2 border-b border-line">{r.discipline}</td>
                       <td className="py-1.5 px-2 border-b border-line">{r.tier}</td>

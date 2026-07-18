@@ -1,0 +1,29 @@
+# Development-model library (data, not code — add a model without a code change).
+# Each model carries the assumptions that distinguish a delivery approach:
+#   ai_boost           velocity uplift (§2.3)
+#   effort_multiplier  scope automation (agentic codegen/test-gen reduces build effort)
+version: "1.0.0"
+
+models:
+  traditional:
+    name: "Traditional development"
+    ai_boost: 0.0
+    effort_multiplier: 1.0
+    assumptions:
+      - "Standard SDLC; no AI-assisted development uplift."
+      - "Velocity at baseline points per engineer per sprint."
+  ai-assisted:
+    name: "AI-assisted development"
+    ai_boost: 0.2
+    effort_multiplier: 0.95
+    assumptions:
+      - "Developers use AI coding assistants; ~20% velocity uplift."
+      - "Modest scope automation (boilerplate, tests)."
+  agentic:
+    name: "Agentic development"
+    ai_boost: 0.35
+    effort_multiplier: 0.85
+    assumptions:
+      - "Agentic workflows drive ~35% velocity uplift."
+      - "~15% of build effort automated (codegen, test generation, migration)."
+      - "Requires strong engineering oversight and an evaluation harness."

@@ -38,6 +38,7 @@ from ..models.variables import Variables
 from ..models.work_item import CureAssessment, ThreePoint, WorkItem, WorkLevel
 from . import montecarlo
 from .matcher import PatternMatch, score_patterns
+from .velocity import team_velocity
 
 SIZE_ORDER = ["XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
 
@@ -114,11 +115,14 @@ def _driver_quantities(components: list[Component], edges: list[Edge], context: 
 
 
 def _instantiate_pattern(pattern: Pattern, feature_points: dict[str, dict]) -> tuple[
-    list[Capability], list[Component], list[WorkItem], list[Edge]
+    list[Component], list[WorkItem], list[Edge]
 ]:
-    """Seed capabilities, components, work items, and edges from a matched pattern."""
+    """Seed components, work items, and component edges from a matched pattern.
+
+    Capabilities are derived separately (LLM or heuristic) so they can be real
+    higher-level capabilities rather than 1:1 with components.
+    """
     components: list[Component] = []
-    capabilities: list[Capability] = []
     work_items: list[WorkItem] = []
     edges: list[Edge] = []
     name_to_component_id: dict[str, str] = {}
@@ -138,12 +142,6 @@ def _instantiate_pattern(pattern: Pattern, feature_points: dict[str, dict]) -> t
                 discipline=spec.discipline,
             )
         )
-        # Skeleton: one capability per component (LLM derivation replaces this).
-        cap_id = f"cap-{i}"
-        capabilities.append(
-            Capability(id=cap_id, name=spec.name, description=spec.description, provenance=Provenance.PATTERN)
-        )
-        edges.append(Edge(source_id=cap_id, target_id=comp_id, kind=EdgeKind.REALIZED_BY, confidence=0.6))
 
         # One feature-level work item per component, sized by type.
         size = _TYPE_SIZE.get(spec.component_type, "M")
@@ -156,7 +154,7 @@ def _instantiate_pattern(pattern: Pattern, feature_points: dict[str, dict]) -> t
                 points=_three_point_for_size(size, feature_points),
                 cure=CureAssessment(
                     complexity=3, unknowns=3, risks=2, effort=3,
-                    rationale=f"Skeleton sizing: {spec.component_type.value} default {size}.",
+                    rationale=f"Sizing: {spec.component_type.value} default {size}.",
                     confidence=0.4,
                 ),
                 practice=None,
@@ -172,7 +170,65 @@ def _instantiate_pattern(pattern: Pattern, feature_points: dict[str, dict]) -> t
         if src and dst:
             edges.append(Edge(source_id=src, target_id=dst, kind=spec.kind, label=spec.label))
 
-    return capabilities, components, work_items, edges
+    return components, work_items, edges
+
+
+def _capabilities_heuristic(
+    components: list[Component], requirements: list[Requirement]
+) -> tuple[list[Capability], list[Edge]]:
+    """Fallback: one capability per component + token-overlap requirement links."""
+    capabilities: list[Capability] = []
+    edges: list[Edge] = []
+    for i, comp in enumerate(components, start=1):
+        cap = Capability(id=f"cap-{i}", name=comp.name, description=comp.description, provenance=Provenance.PATTERN)
+        capabilities.append(cap)
+        edges.append(Edge(source_id=cap.id, target_id=comp.id, kind=EdgeKind.REALIZED_BY, confidence=0.6))
+    edges += _link_requirements(requirements, capabilities)
+    return capabilities, edges
+
+
+def _capabilities_llm(
+    prd_text: str,
+    requirements: list[Requirement],
+    components: list[Component],
+    client=None,
+) -> tuple[list[Capability], list[Edge]]:
+    """LLM-derived capabilities with requirement and component links."""
+    from . import llm
+
+    derived = llm.derive_capabilities(
+        prd_text, [r.text for r in requirements], [c.name for c in components], client=client
+    )
+    capabilities = [
+        Capability(id=f"cap-{i}", name=c["name"], description=c["description"], provenance=Provenance.INFERRED)
+        for i, c in enumerate(derived["capabilities"], start=1)
+    ]
+
+    def cap_id(index) -> str | None:
+        if isinstance(index, int) and 0 <= index < len(capabilities):
+            return capabilities[index].id
+        return None
+
+    edges: list[Edge] = []
+    req_links = derived.get("requirement_links", [])
+    for req, idx in zip(requirements, req_links):
+        cid = cap_id(idx)
+        if cid:
+            edges.append(Edge(source_id=req.id, target_id=cid, kind=EdgeKind.SATISFIED_BY, confidence=0.75))
+
+    name_to_comp = {c.name: c for c in components}
+    for comp_name, idx in derived.get("component_links", {}).items():
+        comp = name_to_comp.get(comp_name)
+        cid = cap_id(idx)
+        if comp and cid:
+            edges.append(Edge(source_id=cid, target_id=comp.id, kind=EdgeKind.REALIZED_BY, confidence=0.75))
+
+    # Guarantee every component is realized by some capability (graph completeness).
+    realized = {e.target_id for e in edges if e.kind is EdgeKind.REALIZED_BY}
+    for comp in components:
+        if comp.id not in realized and capabilities:
+            edges.append(Edge(source_id=capabilities[0].id, target_id=comp.id, kind=EdgeKind.REALIZED_BY, confidence=0.4))
+    return capabilities, edges
 
 
 def _link_requirements(requirements: list[Requirement], capabilities: list[Capability]) -> list[Edge]:
@@ -196,6 +252,56 @@ def _link_requirements(requirements: list[Requirement], capabilities: list[Capab
                 )
             )
     return edges
+
+
+def _extract_requirements(prd_text: str, use_llm: bool, client) -> tuple[list[Requirement], str]:
+    """LLM extraction with heuristic fallback (§3.1)."""
+    if use_llm:
+        try:
+            from . import llm
+
+            items = llm.extract_requirements(prd_text, client=client)
+            reqs = [
+                Requirement(
+                    id=f"req-{i}", text=it["text"], kind=RequirementKind(it["kind"]),
+                    extraction_confidence=it["confidence"],
+                )
+                for i, it in enumerate(items, start=1)
+            ]
+            if reqs:
+                return reqs, "LLM"
+        except Exception:
+            pass
+    return extract_requirements(prd_text), "heuristic"
+
+
+def _rank_patterns(prd_text: str, context: ClientContext, patterns, use_llm: bool, client):
+    """LLM pattern ranking with deterministic signal-overlap fallback (§3.3)."""
+    if use_llm:
+        try:
+            from . import llm
+
+            catalog = [{"id": p.id, "name": p.name, "when_to_use": p.when_to_use} for p in patterns.values()]
+            matches = llm.rank_patterns(prd_text, context.tech_stack, catalog, client=client)
+            ranked = [PatternMatch(m["pattern_id"], m["score"], m["rationale"]) for m in matches]
+            if ranked:
+                return ranked, "LLM"
+        except Exception:
+            pass
+    return score_patterns(prd_text, context, patterns), "deterministic"
+
+
+def _derive_capabilities(prd_text, requirements, components, use_llm, client):
+    """LLM capability derivation with 1:1 heuristic fallback (§4.3)."""
+    if use_llm:
+        try:
+            caps, edges = _capabilities_llm(prd_text, requirements, components, client)
+            if caps:
+                return caps, edges, "LLM"
+        except Exception:
+            pass
+    caps, edges = _capabilities_heuristic(components, requirements)
+    return caps, edges, "heuristic"
 
 
 def _build_team(
@@ -242,13 +348,21 @@ def build_estimate(
     match_override: str | None = None,
     parametric_override: "ParametricCost | None" = None,
     rates: "list[RateRow] | None" = None,
+    use_llm: bool | None = None,
+    llm_client=None,
 ) -> SolutionGraph:
     """Build and estimate a Solution Graph from a PRD + client context.
 
-    Deterministic path (offline): match a pattern, instantiate the graph, size
-    bottom-up, compute top-down, reconcile, build a team, and run Monte Carlo.
+    When the LLM is available (API key set), requirement extraction, pattern
+    matching, and capability derivation use Claude; each step falls back to a
+    deterministic heuristic on absence or error, so the engine always runs.
+    `use_llm` forces the choice; None auto-detects. `llm_client` is injectable
+    for testing.
     """
     context = context or ClientContext()
+    from . import llm
+
+    use_llm = llm.available() if use_llm is None else use_llm
 
     feature_points, tshirt_v = data_loader.load_tshirt_scale()
     variables, vars_v = data_loader.load_variables()
@@ -261,21 +375,27 @@ def build_estimate(
     _, practices_v = data_loader.load_practices()
     _, _, _, tiers_v = data_loader.load_tiers()
 
-    requirements = extract_requirements(prd_text)
-
-    ranked = score_patterns(prd_text, context, patterns)
-    chosen_id = match_override or (ranked[0].pattern_id if ranked else None)
-    pattern = patterns[chosen_id] if chosen_id else None
-
     assumptions: list[str] = []
+
+    # --- Ingest: requirements (LLM with heuristic fallback, §3.1) ---
+    requirements, ingest_mode = _extract_requirements(prd_text, use_llm, llm_client)
+
+    # --- Match: rank patterns (LLM with deterministic fallback, §3.3) ---
+    ranked, match_mode = _rank_patterns(prd_text, context, patterns, use_llm, llm_client)
+    chosen_id = match_override or (ranked[0].pattern_id if ranked else None)
+    pattern = patterns.get(chosen_id) if chosen_id else None
     if pattern is None:
         raise ValueError("No patterns available to match against.")
     top_match = next((m for m in ranked if m.pattern_id == chosen_id), ranked[0])
-    assumptions.append(f"Matched pattern '{pattern.name}' ({top_match.rationale}).")
-    assumptions.append("Capability derivation and per-item sizing are skeleton-level (LLM step pending).")
+    assumptions.append(f"Matched pattern '{pattern.name}' ({top_match.rationale}) [{match_mode}].")
+    assumptions.append(f"Requirements extracted via {ingest_mode}.")
 
-    capabilities, components, work_items, edges = _instantiate_pattern(pattern, feature_points)
-    edges += _link_requirements(requirements, capabilities)
+    components, work_items, edges = _instantiate_pattern(pattern, feature_points)
+
+    # --- Capabilities (LLM-derived with 1:1 heuristic fallback, §4.3) ---
+    capabilities, cap_edges, cap_mode = _derive_capabilities(prd_text, requirements, components, use_llm, llm_client)
+    edges += cap_edges
+    assumptions.append(f"Capabilities derived via {cap_mode}.")
 
     # --- Bottom-up (work-item rollup, deterministic PERT in feature-scale points) ---
     bottom_up = sum(montecarlo.deterministic_pert(wi.points, variables) for wi in work_items)
@@ -302,7 +422,7 @@ def build_estimate(
     # --- Team + cost ---
     team = _build_team(components, rates, context, variables)
     engineers = max(1, sum(1 for r in team.roles if r.discipline != "Project & Program Management"))
-    velocity = variables.avg_story_pts * engineers
+    velocity = team_velocity(variables.avg_story_pts, engineers)
     duration_sprints = bottom_up / velocity if velocity else 0.0
     duration_months = duration_sprints * variables.weeks_in_sprint / 4.345
     total_cost = round((team.monthly_cost or 0.0) * duration_months, 2)

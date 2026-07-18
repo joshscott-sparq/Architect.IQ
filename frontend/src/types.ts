@@ -36,8 +36,42 @@ export interface Component {
   discipline?: string | null;
 }
 
+export interface Scenario {
+  id: string;
+  name: string;
+  dev_model: string;
+  location_mix: Record<string, number>;
+  engineers: number | null;
+}
+
+export interface ScenarioResult {
+  scenario: Scenario;
+  assumptions: string[];
+  effort_points: Percentiles;
+  duration_sprints: Percentiles;
+  cost: Percentiles;
+  monthly_cost: number;
+  total_cost: number;
+}
+
+export interface TeamSuggestion {
+  goal: string;
+  scenario: Scenario;
+  rationale: string;
+  result: ScenarioResult | null;
+}
+
+export interface DeferralSuggestion {
+  work_item_id: string;
+  feature: string;
+  points: number;
+  rationale: string;
+  est_sprint_saving: number;
+}
+
 export interface Graph {
   project_name: string;
+  scenarios?: ScenarioResult[];
   requirements: { id: string; text: string }[];
   capabilities: { id: string; name: string }[];
   components: Component[];

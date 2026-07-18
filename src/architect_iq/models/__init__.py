@@ -23,6 +23,7 @@ from .results import (
     Percentiles,
     ReconciliationResult,
 )
+from .scenario import DeferralSuggestion, Scenario, ScenarioResult, TeamSuggestion
 from .solution_graph import SolutionGraph
 from .team import RateRow, Role, TeamPlan, Tier
 from .variables import Variables
@@ -58,6 +59,10 @@ __all__ = [
     "MonteCarloResult",
     "Percentiles",
     "ReconciliationResult",
+    "DeferralSuggestion",
+    "Scenario",
+    "ScenarioResult",
+    "TeamSuggestion",
     "SolutionGraph",
     "RateRow",
     "Role",

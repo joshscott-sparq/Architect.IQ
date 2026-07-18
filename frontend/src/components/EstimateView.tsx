@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import type { EstimateResponse, Percentiles } from "../types";
+import type { DeferralSuggestion, EstimateResponse, Percentiles, TeamSuggestion } from "../types";
 import { MermaidDiagram } from "./MermaidDiagram";
 
 const money = (n: number) =>
@@ -26,11 +26,14 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
     est.graph.team_plan.roles.filter((r) => r.discipline !== "Project & Program Management").length || 3
   );
   const [oralsMode, setOralsMode] = useState(false);
-  const [busy, setBusy] = useState<null | "knobs" | "recost">(null);
+  const [busy, setBusy] = useState<null | "knobs" | "recost" | "scenarios" | "suggest">(null);
+  const [team, setTeam] = useState<TeamSuggestion[] | null>(null);
+  const [deferrals, setDeferrals] = useState<DeferralSuggestion[] | null>(null);
 
   const g = est.graph;
   const mc = g.monte_carlo;
   const rec = g.reconciliation;
+  const scenarios = g.scenarios ?? [];
 
   async function applyKnobs() {
     setBusy("knobs");
@@ -45,6 +48,26 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
     setBusy("recost");
     try {
       setEst(await api.recost(est.estimate_id));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function compareScenarios() {
+    setBusy("scenarios");
+    try {
+      setEst(await api.computeScenarios(est.estimate_id));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function loadSuggestions() {
+    setBusy("suggest");
+    try {
+      const s = await api.suggestions(est.estimate_id);
+      setTeam(s.team);
+      setDeferrals(s.deferrals);
     } finally {
       setBusy(null);
     }
@@ -155,6 +178,86 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Scenarios: staffing / development models compared */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="card-h mb-0">Staffing &amp; development scenarios</h2>
+          <button className="btn ml-auto" onClick={compareScenarios} disabled={busy !== null}>
+            {busy === "scenarios" ? "Computing…" : "Compare models"}
+          </button>
+        </div>
+        {scenarios.length === 0 ? (
+          <p className="text-muted text-[13px] m-0">
+            Compare traditional vs agentic development and US / nearshore / blended staffing on the same scope.
+          </p>
+        ) : (
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="text-muted">
+                <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Scenario</th>
+                <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Effort P50</th>
+                <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Duration P50</th>
+                {!oralsMode && <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Cost P50</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {scenarios.map((s) => (
+                <tr key={s.scenario.id}>
+                  <td className="py-1.5 px-2 border-b border-line">
+                    {s.scenario.name}
+                    <div className="text-muted text-[11px]">{s.assumptions[0]}</div>
+                  </td>
+                  <td className="py-1.5 px-2 border-b border-line">{pts(s.effort_points.p50)}</td>
+                  <td className="py-1.5 px-2 border-b border-line">{s.duration_sprints.p50.toFixed(1)} spr</td>
+                  {!oralsMode && <td className="py-1.5 px-2 border-b border-line">{money(s.cost.p50)}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Advisor: cheaper/faster team models + scope deferrals */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="card-h mb-0">
+            Optimization suggestions
+            <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span>
+          </h2>
+          <button className="btn ml-auto" onClick={loadSuggestions} disabled={busy !== null}>
+            {busy === "suggest" ? "Thinking…" : "Suggest cheaper / faster"}
+          </button>
+        </div>
+        {!team && !deferrals ? (
+          <p className="text-muted text-[13px] m-0">
+            Suggests team models that trade cost for speed and features to defer to a later release. Learns from past estimates.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-[13px] font-semibold mb-1">Team models</h3>
+              {(team ?? []).map((t, i) => (
+                <div key={i} className="text-[13px] py-2 border-b border-line last:border-0">
+                  <span className={"badge mr-1.5 " + (t.goal === "cheaper" ? "bg-brand-mint text-brand-sage" : "bg-orange-100 text-brand-orange")}>{t.goal}</span>
+                  <b>{t.scenario.name}</b>
+                  {t.result && !oralsMode && <span className="text-muted"> — {money(t.result.cost.p50)}, {t.result.duration_sprints.p50.toFixed(1)} spr</span>}
+                  <div className="text-muted">{t.rationale}</div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <h3 className="text-[13px] font-semibold mb-1">Defer to a later version</h3>
+              {(deferrals ?? []).map((d, i) => (
+                <div key={i} className="text-[13px] py-2 border-b border-line last:border-0">
+                  <b>{d.feature}</b> <span className="text-brand-green font-semibold">−{d.est_sprint_saving.toFixed(1)} spr</span>
+                  <div className="text-muted">{d.rationale}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">

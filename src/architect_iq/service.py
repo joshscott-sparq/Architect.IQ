@@ -10,13 +10,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import data_loader
-from .core import estimation
+from .core import advisor, estimation
 from .core.rates import RateCard, recost
+from .core.scenarios import compute_scenarios, default_scenarios
 from .memory.priors import ActualOutcome, tune_pattern_prior
 from .memory.retrieval import Reference, find_references
 from .models.results import ClientContext
+from .models.scenario import DeferralSuggestion, Scenario, TeamSuggestion
 from .models.solution_graph import SolutionGraph
 from .models.team import RateRow
+from .persistence.rate_cards import SavedRateCard, SQLiteRateCardRepository
 from .persistence.store import EstimateRepository, SQLiteEstimateRepository, StoredEstimate
 
 
@@ -25,18 +28,27 @@ class EstimateService:
         self.repo = repo or SQLiteEstimateRepository(db_path)
         # Actuals held in-process for now; a table lands with the Phase 4 loop.
         self._actuals: dict[str, ActualOutcome] = {}
-        # Active rate card override (uploaded). None -> default pricing file.
-        self._rate_rows: list[RateRow] | None = None
+        # Persisted rate cards share the estimate database (one active, one default).
+        self.rate_cards = SQLiteRateCardRepository(getattr(self.repo, "db_path", db_path))
 
     def active_rates(self) -> tuple[list[RateRow], str]:
-        """The rate rows in effect and a source label."""
-        if self._rate_rows is not None:
-            return self._rate_rows, "custom-upload"
-        rows, _, source_file = data_loader.load_pricing()
-        return rows, source_file
+        """The rate rows in effect (from the active card) and a source label."""
+        card = self.rate_cards.active_card()
+        return card.rows, card.name
 
-    def set_rate_card(self, rows: list[RateRow]) -> None:
-        self._rate_rows = rows
+    # --- Rate-card management ---
+
+    def list_rate_cards(self) -> list[SavedRateCard]:
+        return self.rate_cards.list_cards()
+
+    def create_rate_card(self, name: str, rows: list[RateRow]) -> SavedRateCard:
+        return self.rate_cards.create(name, rows, activate=True)
+
+    def activate_rate_card(self, card_id: str) -> SavedRateCard:
+        return self.rate_cards.activate(card_id)
+
+    def delete_rate_card(self, card_id: str) -> None:
+        self.rate_cards.delete(card_id)
 
     def recost_estimate(self, estimate_id: str) -> StoredEstimate:
         """Reprice an estimate under the active rate card; persist a new version."""
@@ -94,3 +106,29 @@ class EstimateService:
     def record_actuals(self, outcome: ActualOutcome) -> None:
         """Feed delivery actuals into memory for prior calibration (§4.4)."""
         self._actuals[outcome.estimate_id] = outcome
+
+    def compute_scenarios(self, estimate_id: str, scenarios: list[Scenario] | None = None) -> StoredEstimate:
+        """Compute staffing/dev-model scenarios, store them, and persist a version."""
+        stored = self.repo.get(estimate_id)
+        if stored is None:
+            raise KeyError(f"estimate {estimate_id!r} not found")
+        rows, _ = self.active_rates()
+        dev_models, _ = data_loader.load_dev_models()
+        specs = scenarios or default_scenarios()
+        results = compute_scenarios(stored.graph, specs, RateCard(rows), dev_models)
+        graph = stored.graph.model_copy(deep=True)
+        graph.scenarios = results
+        return self.repo.update(estimate_id, graph)
+
+    def suggest(self, estimate_id: str) -> dict:
+        """Advisor: cheaper/faster team models + scope deferrals, grounded in history."""
+        stored = self.repo.get(estimate_id)
+        if stored is None:
+            raise KeyError(f"estimate {estimate_id!r} not found")
+        rows, _ = self.active_rates()
+        dev_models, _ = data_loader.load_dev_models()
+        # History for grounding excludes this estimate itself.
+        past = [s for s in self.repo.all_latest() if s.estimate_id != estimate_id]
+        team = advisor.suggest_team_models(stored.graph, RateCard(rows), dev_models, past=past)
+        deferrals = advisor.suggest_deferrals(stored.graph)
+        return {"team": team, "deferrals": deferrals}

@@ -14,6 +14,9 @@ from pydantic import BaseModel, Field
 from ..models.results import DeterministicResult, MonteCarloResult
 from ..models.solution_graph import SolutionGraph
 from . import montecarlo
+from .velocity import team_velocity
+
+_PM = "Project & Program Management"
 
 
 class RecomputeOverrides(BaseModel):
@@ -31,20 +34,30 @@ def recompute(graph: SolutionGraph, overrides: RecomputeOverrides, iterations: i
     if overrides.avg_story_pts is not None:
         variables.avg_story_pts = overrides.avg_story_pts
 
-    # Apply allocation overrides to the team.
+    # Apply per-discipline allocation overrides first.
     team = graph.team_plan.model_copy(deep=True)
     if overrides.allocations:
         for role in team.roles:
             if role.discipline in overrides.allocations:
                 role.allocated = overrides.allocations[role.discipline]
 
-    engineers = overrides.engineer_count or max(
-        1, int(round(sum(r.allocated for r in team.roles if r.discipline != "Project & Program Management")))
-    )
+    eng_roles = [r for r in team.roles if r.discipline != _PM]
+    base_engineers = sum(r.allocated for r in eng_roles) or float(len(eng_roles)) or 1.0
+
+    # engineer_count scales the engineering headcount so monthly cost grows with
+    # team size (not just velocity). PM roles are left unchanged.
+    if overrides.engineer_count is not None and base_engineers > 0:
+        factor = overrides.engineer_count / base_engineers
+        for role in eng_roles:
+            role.allocated *= factor
+        engineers = float(overrides.engineer_count)
+    else:
+        engineers = base_engineers
+
     ai_boost = overrides.ai_boost if overrides.ai_boost is not None else 0.0
 
-    # Velocity with AI boost (§2.3): (1 + AIBoost) * AvgStoryPts * engineers.
-    velocity = (1.0 + ai_boost) * variables.avg_story_pts * engineers
+    # Velocity scales sub-linearly with team size (diminishing returns, §2.3).
+    velocity = team_velocity(variables.avg_story_pts, engineers, ai_boost)
 
     bottom_up = sum(montecarlo.deterministic_pert(wi.points, variables) for wi in graph.work_items)
     duration_sprints = bottom_up / velocity if velocity else 0.0

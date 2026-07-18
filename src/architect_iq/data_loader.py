@@ -151,6 +151,13 @@ def load_pricing() -> tuple[list[RateRow], str, str]:
 
 
 @lru_cache(maxsize=1)
+def load_dev_models() -> tuple[dict[str, dict], str]:
+    """Return (dev_model_key -> {name, ai_boost, effort_multiplier, assumptions}, version)."""
+    raw = _read_yaml("dev_models.yaml")
+    return raw["models"], raw["version"]
+
+
+@lru_cache(maxsize=1)
 def load_patterns() -> tuple[dict[str, Pattern], str]:
     """Return (pattern_id -> Pattern, version) from the pattern library (§4.2)."""
     raw = _read_yaml("patterns.yaml")

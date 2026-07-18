@@ -19,6 +19,7 @@ from .results import (
     MonteCarloResult,
     ReconciliationResult,
 )
+from .scenario import ScenarioResult
 from .team import TeamPlan
 from .variables import Variables
 from .work_item import WorkItem
@@ -55,6 +56,9 @@ class SolutionGraph(BaseModel):
     deterministic: DeterministicResult | None = None
     monte_carlo: MonteCarloResult | None = None
     reconciliation: ReconciliationResult | None = None
+
+    # Staffing/development-model scenarios (spec §5.5).
+    scenarios: list[ScenarioResult] = Field(default_factory=list)
 
     # Provenance
     data_versions: DataVersions | None = None
