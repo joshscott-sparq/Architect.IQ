@@ -11,6 +11,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, model_validator
 
 from .complexity import LinkedFactor
+from .context import ContextPanel
 from .graph import Capability, Component, Edge, EdgeKind, Requirement
 from .phase import Phase
 from .results import (
@@ -31,6 +32,7 @@ class SolutionGraph(BaseModel):
 
     project_name: str
     client_context: ClientContext = Field(default_factory=ClientContext)
+    context_panel: ContextPanel = Field(default_factory=ContextPanel)
 
     # Nodes
     requirements: list[Requirement] = Field(default_factory=list)

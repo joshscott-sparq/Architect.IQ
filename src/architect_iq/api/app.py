@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 
 import jwt
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -25,6 +26,7 @@ from ..emit.mermaid import architecture_mermaid
 from ..integrations.notion import get_opportunity_notes
 from ..memory.priors import ActualOutcome
 from ..memory.retrieval import Reference
+from ..models.context import ContextPanel
 from ..models.org import AccessContext, Permission, Role, User
 from ..models.results import ClientContext
 from ..models.scenario import Scenario
@@ -502,6 +504,43 @@ def recost_estimate(estimate_id: str, user: User = Depends(get_current_user)) ->
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
     return _to_response(saved.estimate_id, saved.version, saved.graph)
+
+
+@app.put("/api/estimates/{estimate_id}/context", response_model=EstimateResponse)
+def save_context(estimate_id: str, panel: ContextPanel, user: User = Depends(get_current_user)) -> EstimateResponse:
+    """Save the Context Panel and auto-recalculate the estimate (in place)."""
+    _access_or_403(user, estimate_id, "edit")
+    try:
+        stored, references = service.recalculate_from_context(estimate_id, panel)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="estimate not found")
+    return _to_response(stored.estimate_id, stored.version, stored.graph, references)
+
+
+class UrlIngestRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/ingest/url")
+def ingest_url(req: UrlIngestRequest, user: User = Depends(get_current_user)) -> dict:
+    """Fetch a URL and return its text for use as a context entry."""
+    import httpx
+
+    url = req.url.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(status_code=422, detail="URL must start with http(s)://")
+    try:
+        resp = httpx.get(url, timeout=15, follow_redirects=True, headers={"User-Agent": "Architect.IQ"})
+        resp.raise_for_status()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"could not fetch URL: {exc}")
+    text = resp.text
+    # Strip HTML tags crudely so the model sees readable content.
+    if "html" in resp.headers.get("content-type", "").lower() or "<html" in text[:2000].lower():
+        text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+    return {"url": url, "text": text[:20000], "status": "ingested"}
 
 
 @app.get("/api/dev-models")

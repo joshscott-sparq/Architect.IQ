@@ -25,6 +25,7 @@ from ..models.graph import (
     RequirementKind,
 )
 from ..models.pattern import ParametricCost, Pattern
+from ..models.context import ContextPanel as _ContextPanel
 from ..models.results import (
     ClientContext,
     DataVersions,
@@ -398,6 +399,7 @@ def build_estimate(
     rates: "list[RateRow] | None" = None,
     use_llm: bool | None = None,
     llm_client=None,
+    context_panel=None,
 ) -> SolutionGraph:
     """Build and estimate a Solution Graph from a PRD + client context.
 
@@ -451,7 +453,25 @@ def build_estimate(
 
     # --- Complexity/risk factors -> velocity impact (§2.3-2.4) ---
     factors = derive_factors(components, edges, context, pattern, prd_text)
+    accel_boost = 0.0
+    if context_panel is not None:
+        from ..models.context import SCOPE_ESTIMATE
+        from ..models.complexity import LinkedFactor
+        from ..models.enums import FactorScope, RiskSeverity
+
+        for e in context_panel.risks:
+            if e.content.strip():
+                factors.append(LinkedFactor(
+                    family=f"Risk: {e.content.strip()[:48]}", severity=RiskSeverity.MODERATE,
+                    scope=FactorScope.PROJECT, impact=-0.3, is_risk=True))
+        for e in context_panel.assumptions:
+            if e.content.strip():
+                assumptions.append(f"Assumption: {e.content.strip()[:160]}")
+        accel_boost = 0.25 * sum(1 for e in context_panel.accelerators if e.content.strip())
+
     cx_impact = complexity_impact(factors, variables.avg_story_pts)
+    # Accelerators offset the complexity penalty (capped so velocity stays sane).
+    cx_impact = min(cx_impact + accel_boost, 0.3 * variables.avg_story_pts)
     if factors:
         assumptions.append(
             f"Applied {len(factors)} complexity/risk factor(s) "
@@ -535,6 +555,7 @@ def build_estimate(
         monte_carlo=monte_carlo,
         reconciliation=reconciliation,
         complexity_factors=factors,
+        context_panel=context_panel or _ContextPanel(),
         data_versions=DataVersions(
             tshirt_scale=tshirt_v,
             variables=vars_v,

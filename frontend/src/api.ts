@@ -84,6 +84,9 @@ export const api = {
   }) => http<EstimateResponse>(`/api/estimates/${id}/rebuild`, jsonBody(body)),
   cloneEstimate: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/clone`, { method: "POST" }),
   setTags: (id: string, tags: string[]) => http<EstimateResponse>(`/api/estimates/${id}/tags`, jsonBody({ tags })),
+  saveContext: (id: string, panel: import("./types").ContextPanel) =>
+    http<EstimateResponse>(`/api/estimates/${id}/context`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(panel) }),
+  ingestUrl: (url: string) => http<{ url: string; text: string; status: string }>("/api/ingest/url", jsonBody({ url })),
   recompute: (id: string, overrides: { ai_boost?: number; engineer_count?: number }) =>
     http<EstimateResponse>(`/api/estimates/${id}/recompute`, jsonBody(overrides)),
   recost: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/recost`, { method: "POST" }),

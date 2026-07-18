@@ -56,6 +56,27 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D22. Context Panel (context-panel-spec.md)
+**Call:** Built the Context Panel as a bottom-docked, collapsible tabbed strip
+below the Output Zone (the estimate view), per the spec. Six fixed tabs
+(Requirements, Phases, Risks, Accelerators, Assumptions, External Sources); each
+context tab is a list of discrete entries added via manual text, dropped file, or
+URL; Risks/Accelerators/Assumptions carry a Scope (entire estimate or a phase).
+Model: `models/context.py` (ContextEntry, ContextPhase, ExternalSource,
+ContextPanel) stored on the SolutionGraph. `PUT /api/estimates/{id}/context`
+saves the panel and **auto-recalculates in place** (owner chose automatic-on-
+change; frontend debounces ~1s). `POST /api/ingest/url` fetches + strips a URL.
+Requirements form the PRD (falling back to the estimate's existing requirements
+when the panel has none, so editing only risks/assumptions preserves scope);
+risks become velocity-reducing factors; accelerators offset the penalty;
+assumptions are recorded. SparqOS is a default read-only external source, always
+present. External sources are configurable with stubbed data pull (real clients
+when creds exist); SpecKit write-back is user-triggered. Collapse state persists.
+**Why:** Owner supplied context-panel-spec.md and confirmed: auto-recalc on
+change, external sources configurable + stubbed, SpecKit write-back user-
+triggered, build now. Phase-assignment of work in the Output Zone and live
+external-source pull remain follow-ups.
+
 ## D21. Estimation methodology upgrade
 **Call:** Four changes make the estimate responsive and its ranges defensible:
 1. **Complexity/risk factors now move the number** (`core/factors.py`). Factors

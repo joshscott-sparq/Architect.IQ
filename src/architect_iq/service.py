@@ -63,7 +63,7 @@ class EstimateService:
         repriced = recost(stored.graph, RateCard(rows))
         return self.repo.update(estimate_id, repriced)
 
-    def _build_graph(self, project_name, prd_text, context, match_override=None):
+    def _build_graph(self, project_name, prd_text, context, match_override=None, context_panel=None):
         """Build a graph with memory-tuned priors; returns (graph, references)."""
         context = context or ClientContext()
         patterns, _ = data_loader.load_patterns()
@@ -81,9 +81,29 @@ class EstimateService:
         graph = estimation.build_estimate(
             project_name, prd_text, context,
             match_override=match_override, parametric_override=parametric_override, rates=rates,
+            context_panel=context_panel,
         )
         references = find_references(prd_text, context, graph.matched_pattern_ids, past)
         return graph, references
+
+    def recalculate_from_context(self, estimate_id: str, panel) -> tuple[StoredEstimate, list[Reference]]:
+        """Save the Context Panel and re-estimate from it (auto-recalc, in place).
+
+        Requirements entries form the PRD; risks/accelerators/assumptions and
+        phases flow through the build. Tags are preserved.
+        """
+        stored = self.repo.get(estimate_id)
+        if stored is None:
+            raise KeyError(f"estimate {estimate_id!r} not found")
+        prd = "\n".join(e.content for e in panel.requirements if e.content.strip()).strip()
+        if not prd:
+            # No Requirements entries yet: preserve the estimate's existing scope
+            # so editing only risks/assumptions doesn't wipe the breakdown.
+            prd = "\n".join(f"- {r.text}" for r in stored.graph.requirements) or "(no requirements yet)"
+        graph, references = self._build_graph(stored.graph.project_name, prd, stored.graph.client_context, context_panel=panel)
+        graph.tags = list(stored.graph.tags)
+        saved = self.repo.overwrite_latest(estimate_id, graph)
+        return saved, references
 
     def create_estimate(
         self,

@@ -34,6 +34,16 @@ every artifact is a projection of one object. See
 - Sub-linear team velocity (diminishing returns) so more engineers shorten the
   timeline without looking artificially cheaper.
 
+**Context Panel** (bottom-docked, collapsible)
+- Six tabs — Requirements, Phases, Risks, Accelerators, Assumptions, External
+  Sources — each a list of entries added by manual text, dropped file, or URL.
+- Risks/Accelerators/Assumptions carry a scope (entire estimate or a phase);
+  risks reduce velocity, accelerators offset it, assumptions are recorded.
+- External Sources (SparqOS default read-only, plus SpecKit/GitHub/Salesforce/
+  Notion/Slack/Other) — configurable connections with status; data pull stubbed
+  pending credentials.
+- Editing context auto-recalculates the estimate above (the Output Zone).
+
 **Context ingestion**
 - Drag-and-drop or paste: `.md/.txt`, `.docx`, `.pdf`, `.xlsx`, `.csv`, and images.
 - With an API key, Claude extracts requirements, derives capabilities, matches

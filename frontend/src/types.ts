@@ -76,8 +76,49 @@ export interface DeferralSuggestion {
   est_sprint_saving: number;
 }
 
+export interface ContextEntry {
+  id: string;
+  tab: "requirements" | "risks" | "accelerators" | "assumptions";
+  source_type: "manual" | "file" | "url";
+  content: string;
+  reference?: string | null;
+  scope: string; // "estimate" or a phase id
+  status: "ingested" | "processing" | "error";
+  created_at?: string;
+}
+
+export interface ContextPhase {
+  id: string;
+  name: string;
+  method: "dates" | "duration" | "relative";
+  start_date?: string | null;
+  end_date?: string | null;
+  duration_weeks?: number | null;
+  description?: string;
+}
+
+export interface ExternalSource {
+  id: string;
+  type: "sparqos" | "speckit" | "github" | "salesforce" | "notion" | "slack" | "other";
+  display_name: string;
+  status: "connected" | "needs_authentication" | "error";
+  access_mode: "read-only" | "read-write";
+  config: Record<string, string>;
+  created_at?: string;
+}
+
+export interface ContextPanel {
+  requirements: ContextEntry[];
+  risks: ContextEntry[];
+  accelerators: ContextEntry[];
+  assumptions: ContextEntry[];
+  phases: ContextPhase[];
+  external_sources: ExternalSource[];
+}
+
 export interface Graph {
   project_name: string;
+  context_panel?: ContextPanel;
   tags?: string[];
   complexity_factors?: LinkedFactor[];
   scenarios?: ScenarioResult[];

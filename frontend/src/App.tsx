@@ -13,6 +13,10 @@ import { OpportunitiesList } from "./components/OpportunitiesList";
 import { Login } from "./components/Login";
 import { SharedPage } from "./components/SharedPage";
 import { Avatar } from "./components/Avatar";
+import { ContextPanel } from "./components/ContextPanel";
+import type { ContextPanel as Panel } from "./types";
+
+const EMPTY_PANEL: Panel = { requirements: [], risks: [], accelerators: [], assumptions: [], phases: [], external_sources: [] };
 
 type View = "new" | "list" | "view" | "rates" | "admin" | "opps" | "opp";
 
@@ -28,7 +32,13 @@ export default function App() {
   const [oppId, setOppId] = useState<string | null>(null);
   const [listKey, setListKey] = useState(0);
   const [menu, setMenu] = useState<null | "nav" | "user">(null);
+  const [nonce, setNonce] = useState(0);
+  const [ctxCollapsed, setCtxCollapsed] = useState(() => localStorage.getItem("aiq_ctx_collapsed") === "1");
   const demoTried = useRef(false);
+
+  function toggleCtx() {
+    setCtxCollapsed((c) => { localStorage.setItem("aiq_ctx_collapsed", c ? "0" : "1"); return !c; });
+  }
 
   useEffect(() => {
     if (!DEMO_MODE || demoTried.current || loading || user) return;
@@ -115,16 +125,29 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 pb-16">
+      <main className={"max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 " + (view === "view" && current ? (ctxCollapsed ? "pb-24" : "pb-[46vh]") : "pb-16")}>
         {view === "new" && !isClient && <NewEstimate onOpen={open} />}
         {view === "list" && <EstimatesList key={listKey} onOpen={open} />}
         {view === "opps" && <OpportunitiesList onOpen={(id) => { setOppId(id); setView("opp"); }} />}
         {view === "opp" && oppId && <OpportunityView id={oppId} onOpenEstimate={open} />}
         {view === "rates" && !isClient && <RatesView />}
         {view === "admin" && isAdmin && <AdminView />}
-        {view === "view" && current && <EstimateView key={current.estimate_id + current.version} initial={current} canEdit={access.can_edit} canComment={access.can_comment} canClone={!isClient} onClone={open} />}
+        {view === "view" && current && <EstimateView key={current.estimate_id + "-" + current.version + "-" + nonce} initial={current} canEdit={access.can_edit} canComment={access.can_comment} canClone={!isClient} onClone={open} />}
         {view === "view" && !current && <div className="text-muted">No estimate selected.</div>}
       </main>
+
+      {/* Context Panel docked at the bottom of the estimate (Output Zone above). */}
+      {view === "view" && current && (
+        <ContextPanel
+          key={current.estimate_id}
+          estimateId={current.estimate_id}
+          initial={current.graph.context_panel ?? EMPTY_PANEL}
+          canEdit={access.can_edit}
+          collapsed={ctxCollapsed}
+          onToggle={toggleCtx}
+          onRecalc={(e) => { setCurrent(e); setNonce((n) => n + 1); }}
+        />
+      )}
     </>
   );
 }

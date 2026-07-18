@@ -97,7 +97,7 @@ export function RatesView() {
         <div className="card">
           <h2 className="card-h">Active card{active ? ` · ${active.source}` : ""}</h2>
           {active && (
-            <div className="max-h-[560px] overflow-y-auto">
+            <div className="max-h-[560px] overflow-auto">
               <table className="w-full border-collapse text-[13px]">
                 <thead>
                   <tr className="text-muted">
