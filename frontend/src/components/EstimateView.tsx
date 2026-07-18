@@ -141,18 +141,24 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           </Section>
         )}
 
-        {(g.complexity_factors?.length ?? 0) > 0 && (
-          <Section title="Risk & complexity" defaultOpen={false}>
-            <p className="text-muted text-[12px] mt-0 mb-2">Derived from context; each reduces velocity and widens the range.</p>
-            {g.complexity_factors!.map((f, i) => (
-              <div key={i} className="flex items-center gap-2 text-[13px] py-1 border-b border-line last:border-0">
-                <span className="flex-1">{f.family}</span>
-                <span className="badge bg-brand-mint text-brand-sage">{f.severity}</span>
-                <span className="text-brand-orange-deep font-semibold w-12 text-right">{f.impact.toFixed(2)}</span>
-              </div>
-            ))}
-          </Section>
-        )}
+        {(() => {
+          // Factors sourced from Context Panel risk entries (family "Risk: ...")
+          // are already shown there — don't duplicate them in the output.
+          const complexity = (g.complexity_factors ?? []).filter((f) => !f.family.startsWith("Risk: "));
+          if (complexity.length === 0) return null;
+          return (
+            <Section title="Complexity factors" defaultOpen={false}>
+              <p className="text-muted text-[12px] mt-0 mb-2">Derived from context; each reduces velocity and widens the range. Risks entered in the Context panel below drive the estimate too — see the Risks tab there.</p>
+              {complexity.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 text-[13px] py-1 border-b border-line last:border-0">
+                  <span className="flex-1">{f.family}</span>
+                  <span className="badge bg-brand-mint text-brand-sage">{f.severity}</span>
+                  <span className="text-brand-orange-deep font-semibold w-12 text-right">{f.impact.toFixed(2)}</span>
+                </div>
+              ))}
+            </Section>
+          );
+        })()}
 
         {(scenarios.length > 0 || !readOnly) && (
           <Section title="Staffing & development scenarios" actions={!readOnly ? <button className="btn text-[13px]" onClick={compareScenarios} disabled={busy !== null}>{busy === "scenarios" ? "Computing…" : "Compare models"}</button> : undefined}>
