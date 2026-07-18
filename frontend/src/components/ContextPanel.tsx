@@ -78,43 +78,48 @@ export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed
 
   return (
     <div className="fixed left-0 right-0 bottom-0 z-30 bg-surface border-t border-line shadow-[0_-8px_24px_rgba(0,0,0,0.08)]" style={{ height: dockHeight }}>
-      {/* Tab bar (horizontally scrollable) + collapse handle */}
-      <div className="flex items-stretch border-b border-line">
-        <div className="flex items-center gap-1 overflow-x-auto px-3 sm:px-5 flex-1 min-w-0">
-          {ENTRY_TABS.map((t) => (
-            <button key={t.key}
-              onClick={() => { setTab(t.key); if (collapsed) toggleCollapsed(); }}
-              className={"shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-medium border-b-2 -mb-px " + (tab === t.key && !collapsed ? "border-brand-orange text-ink" : "border-transparent text-muted hover:text-ink")}>
-              {t.label}
-              {count(t.key) > 0 && <span className="ml-1.5 text-[11px] bg-brand-mint text-brand-sage rounded-full px-1.5">{count(t.key)}</span>}
+      <div className="max-w-[1180px] mx-auto">
+        {/* Tab bar (horizontally scrollable) + collapse handle */}
+        <div className="flex items-stretch border-b border-line px-5 sm:px-7">
+          <div className="flex items-center gap-1.5 pr-3 mr-2 border-r border-line shrink-0">
+            <span className="text-[13px] font-semibold text-ink">Context</span>
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+            {ENTRY_TABS.map((t) => (
+              <button key={t.key}
+                onClick={() => { setTab(t.key); if (collapsed) toggleCollapsed(); }}
+                className={"shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-medium border-b-2 -mb-px " + (tab === t.key && !collapsed ? "border-brand-orange text-ink" : "border-transparent text-muted hover:text-ink")}>
+                {t.label}
+                {count(t.key) > 0 && <span className="ml-1.5 text-[11px] bg-brand-mint text-brand-sage rounded-full px-1.5">{count(t.key)}</span>}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 pl-2 shrink-0 border-l border-line">
+            {saving && <span className="text-[12px] text-muted hidden sm:inline">Recalculating…</span>}
+            <button onClick={toggleCollapsed} className="text-muted hover:text-ink px-2 py-1" title={collapsed ? "Expand" : "Collapse"}>
+              {collapsed ? "▲" : "▼"}
             </button>
-          ))}
+          </div>
         </div>
-        <div className="flex items-center gap-2 px-2 shrink-0 border-l border-line">
-          {saving && <span className="text-[12px] text-muted hidden sm:inline">Recalculating…</span>}
-          <button onClick={toggleCollapsed} className="text-muted hover:text-ink px-2 py-1" title={collapsed ? "Expand" : "Collapse"}>
-            {collapsed ? "▲" : "▼"}
-          </button>
-        </div>
-      </div>
 
-      {!collapsed && (
-        <div className="overflow-y-auto px-3 sm:px-5 py-3" style={{ height: "calc(42vh - 44px)" }}>
-          {LIST_TABS.includes(tab) && (
-            <EntryTab
-              tabKey={tab as Exclude<TabKey, "phases" | "external">}
-              entries={panel[tab as "requirements"] as ContextEntry[]}
-              scoped={ENTRY_TABS.find((t) => t.key === tab)!.scoped}
-              hint={ENTRY_TABS.find((t) => t.key === tab)!.hint}
-              phases={panel.phases}
-              canEdit={canEdit}
-              onAdd={addEntry} onRemove={removeEntry} onScope={setScope}
-            />
-          )}
-          {tab === "phases" && <PhasesTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
-          {tab === "external" && <ExternalTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
-        </div>
-      )}
+        {!collapsed && (
+          <div className="overflow-y-auto px-5 sm:px-7 py-3" style={{ height: "calc(42vh - 44px)" }}>
+            {LIST_TABS.includes(tab) && (
+              <EntryTab
+                tabKey={tab as Exclude<TabKey, "phases" | "external">}
+                entries={panel[tab as "requirements"] as ContextEntry[]}
+                scoped={ENTRY_TABS.find((t) => t.key === tab)!.scoped}
+                hint={ENTRY_TABS.find((t) => t.key === tab)!.hint}
+                phases={panel.phases}
+                canEdit={canEdit}
+                onAdd={addEntry} onRemove={removeEntry} onScope={setScope}
+              />
+            )}
+            {tab === "phases" && <PhasesTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
+            {tab === "external" && <ExternalTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
