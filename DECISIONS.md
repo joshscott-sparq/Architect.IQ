@@ -56,6 +56,34 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D23. AI Tiers replace the 3-model dev-model library
+**Call:** Replaced the old 3-key dev-model library (traditional/ai-assisted/
+agentic) with a 5-tier AI Tier ladder (`tier-1`..`tier-5`), each carrying a
+human:AI-agent ratio, a human role, and an AI role (owner supplied the ratio
+table). Same data file (`data/dev_models.yaml`), same loader
+(`data_loader.load_dev_models`) — only the keys and fields changed, so
+`core/scenarios.py` and `core/advisor.py` needed no structural changes beyond
+updating hardcoded key references ("traditional"/"agentic" -> "tier-1"/highest
+tier). `default_scenarios()` is now data-driven off the tier list (one scenario
+per tier at US, plus Nearshore and 50/50-blend variants of the top tier) instead
+of 4 hardcoded entries. The Deal-shaping panel's free-form 0-50% AI-boost slider
+is replaced by a Tier 1-5 picker that sets the same underlying `ai_boost` lever;
+a new `GET /api/ai-tiers` endpoint (renamed from `/api/dev-models`, which had no
+callers yet) serves the ratio/role data for that picker and a reference table in
+the Team plan section.
+**Why:** Owner supplied an AI Tiers table (Tier 1-5, human:AI ratio, human role,
+AI role) and asked to add it to the staff/team modeling area, confirming: (1)
+replace the 3 dev models with 5 tiers everywhere they're used — scenario
+comparisons and the Deal-shaping slider — rather than adding tiers as a separate
+concept; (2) derive AI-boost/effort-multiplier values heuristically for now
+rather than block on exact percentages. **The tier -> ai_boost mapping is a
+first-pass heuristic, not calibrated data:** tier-1=0%, tier-2=15%, tier-3=30%,
+tier-4=45%, tier-5=60% boost (effort_multiplier 1.0/0.97/0.90/0.80/0.65),
+monotonic with each tier's AI-agent ratio (0/0/1/5/20) and anchored so tier-3
+sits near the old "agentic" model's 35%/0.85. FLAGGED to owner: revisit once
+delivered actuals exist per tier (the memory/prior-tuning loop is the natural
+place to recalibrate).
+
 ## D22. Context Panel (context-panel-spec.md)
 **Call:** Built the Context Panel as a bottom-docked, collapsible tabbed strip
 below the Output Zone (the estimate view), per the spec. Six fixed tabs

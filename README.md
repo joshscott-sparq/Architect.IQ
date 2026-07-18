@@ -51,8 +51,12 @@ every artifact is a projection of one object. See
   Without a key, deterministic heuristics run the whole pipeline.
 
 **Scenarios & advisor**
-- Multiple staffing/development models per estimate — traditional vs AI-assisted
-  vs agentic; US / nearshore / blended — computed and compared side by side.
+- **AI Tiers**: a 5-tier human-to-AI-agent ratio ladder (Tier 1 fully manual through
+  Tier 5's 1:20 human-to-agent ratio), each with a defined human role, AI role, and
+  velocity/effort impact — data-driven in [`dev_models.yaml`](src/architect_iq/data/dev_models.yaml).
+- Multiple staffing models per estimate — every AI Tier; US / nearshore / blended —
+  computed and compared side by side. The active estimate's Deal-shaping panel
+  picks a Tier directly (replaces a free-form AI-boost slider).
 - Optimization advisor suggests cheaper/faster team models (with real numbers)
   and features to defer to a later release, grounded in historical estimates.
 

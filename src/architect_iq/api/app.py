@@ -543,14 +543,19 @@ def ingest_url(req: UrlIngestRequest, user: User = Depends(get_current_user)) ->
     return {"url": url, "text": text[:20000], "status": "ingested"}
 
 
-@app.get("/api/dev-models")
-def list_dev_models() -> list[dict]:
+@app.get("/api/ai-tiers")
+def list_ai_tiers() -> list[dict]:
+    """The AI Tier ladder (human-to-AI-agent ratio) for team modeling."""
     models, _ = data_loader.load_dev_models()
-    return [
-        {"key": k, "name": m["name"], "ai_boost": m["ai_boost"],
-         "effort_multiplier": m["effort_multiplier"], "assumptions": m.get("assumptions", [])}
+    tiers = [
+        {"key": k, "name": m["name"], "tier": m.get("tier", 0),
+         "human_ratio": m.get("human_ratio", 1), "ai_ratio": m.get("ai_ratio", 0),
+         "human_role": m.get("human_role", ""), "ai_role": m.get("ai_role", ""),
+         "ai_boost": m["ai_boost"], "effort_multiplier": m["effort_multiplier"],
+         "assumptions": m.get("assumptions", [])}
         for k, m in models.items()
     ]
+    return sorted(tiers, key=lambda t: t["tier"])
 
 
 class ScenariosRequest(BaseModel):

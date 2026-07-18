@@ -32,13 +32,27 @@ def _scaled(tp: ThreePoint, mult: float) -> ThreePoint:
 
 
 def default_scenarios() -> list[Scenario]:
-    """Preset scenarios spanning dev model and location (§5.5 examples)."""
-    return [
-        Scenario(id="trad-us", name="Traditional · US", dev_model="traditional", location_mix={"US": 1.0}),
-        Scenario(id="agentic-us", name="Agentic · US", dev_model="agentic", location_mix={"US": 1.0}),
-        Scenario(id="agentic-ns", name="Agentic · Nearshore", dev_model="agentic", location_mix={"NS": 1.0}),
-        Scenario(id="agentic-blend", name="Agentic · 50/50 blend", dev_model="agentic", location_mix={"US": 0.5, "NS": 0.5}),
+    """Preset scenarios spanning the AI Tier ladder and location (§5.5 examples).
+
+    Data-driven from the AI Tiers library (add/reorder a tier without a code
+    change): one US scenario per tier, plus Nearshore and 50/50-blend variants
+    of the top tier so location tradeoffs stay visible at the highest leverage.
+    """
+    from .. import data_loader
+
+    models, _ = data_loader.load_dev_models()
+    tiers = sorted(models.items(), key=lambda kv: kv[1].get("tier", 0))
+    if not tiers:
+        return []
+
+    scenarios = [
+        Scenario(id=f"{key}-us", name=f"{m['name']} · US", dev_model=key, location_mix={"US": 1.0})
+        for key, m in tiers
     ]
+    top_key, top_m = tiers[-1]
+    scenarios.append(Scenario(id=f"{top_key}-ns", name=f"{top_m['name']} · Nearshore", dev_model=top_key, location_mix={"NS": 1.0}))
+    scenarios.append(Scenario(id=f"{top_key}-blend", name=f"{top_m['name']} · 50/50 blend", dev_model=top_key, location_mix={"US": 0.5, "NS": 0.5}))
+    return scenarios
 
 
 def compute_scenario(
@@ -50,7 +64,7 @@ def compute_scenario(
     iterations: int = 10_000,
 ) -> ScenarioResult:
     variables = variables or graph.variables
-    dm = dev_models.get(scenario.dev_model) or dev_models.get("traditional", {})
+    dm = dev_models.get(scenario.dev_model) or dev_models.get("tier-1", {})
     ai_boost = float(dm.get("ai_boost", 0.0))
     effort_mult = float(dm.get("effort_multiplier", 1.0))
 

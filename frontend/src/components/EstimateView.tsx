@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
-import type { DeferralSuggestion, EstimateResponse, Percentiles, TeamSuggestion } from "../types";
+import type { AiTier, DeferralSuggestion, EstimateResponse, Percentiles, TeamSuggestion } from "../types";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { Section } from "./Section";
 import { ShareControls } from "./ShareControls";
@@ -52,7 +52,18 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
   const readOnly = !canEdit;
   const [est, setEst] = useState(initial);
   const [aiBoost, setAiBoost] = useState(0);
+  const [tiers, setTiers] = useState<AiTier[]>([]);
+  const [tierKey, setTierKey] = useState<string | null>(null);
   const [engineers, setEngineers] = useState(est.graph.team_plan.roles.filter((r) => r.discipline !== "Project & Program Management").length || 3);
+
+  useEffect(() => {
+    api.listAiTiers().then((ts) => {
+      setTiers(ts);
+      const match = ts.find((t) => t.ai_boost === aiBoost) ?? ts[0];
+      if (match) setTierKey(match.key);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [oralsMode, setOralsMode] = useState(false);
   const [busy, setBusy] = useState<null | "knobs" | "recost" | "scenarios" | "suggest" | "clone">(null);
   const [team, setTeam] = useState<TeamSuggestion[] | null>(null);
@@ -64,7 +75,8 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
   const rec = g.reconciliation;
   const scenarios = g.scenarios ?? [];
 
-  async function applyKnobs() { setBusy("knobs"); try { setEst(await api.recompute(est.estimate_id, { ai_boost: aiBoost, engineer_count: engineers })); } finally { setBusy(null); } }
+  async function applyKnobs(boost = aiBoost) { setBusy("knobs"); try { setEst(await api.recompute(est.estimate_id, { ai_boost: boost, engineer_count: engineers })); } finally { setBusy(null); } }
+  function selectTier(t: AiTier) { setTierKey(t.key); setAiBoost(t.ai_boost); applyKnobs(t.ai_boost); }
   async function recost() { setBusy("recost"); try { setEst(await api.recost(est.estimate_id)); } finally { setBusy(null); } }
   async function compareScenarios() { setBusy("scenarios"); try { setEst(await api.computeScenarios(est.estimate_id)); } finally { setBusy(null); } }
   async function loadSuggestions() { setBusy("suggest"); try { const s = await api.suggestions(est.estimate_id); setTeam(s.team); setDeferrals(s.deferrals); } finally { setBusy(null); } }
@@ -117,12 +129,23 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
         {!readOnly && (
           <Section title="Deal-shaping" expandable={false}>
             <div className="my-1">
-              <div className="flex justify-between text-[13px] font-semibold"><span>AI boost <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span></span><span>{Math.round(aiBoost * 100)}%</span></div>
-              <input type="range" min={0} max={0.5} step={0.05} value={aiBoost} className="w-full accent-brand-green" onChange={(e) => setAiBoost(parseFloat(e.target.value))} onMouseUp={applyKnobs} onTouchEnd={applyKnobs} />
+              <div className="flex justify-between text-[13px] font-semibold"><span>AI Tier <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span></span><span>{Math.round(aiBoost * 100)}% boost</span></div>
+              <div className="flex gap-1.5 mt-1.5">
+                {tiers.map((t) => (
+                  <button key={t.key} className={"flex-1 py-1.5 rounded-lg text-[13px] font-semibold border " + (tierKey === t.key ? "bg-brand-green text-white border-brand-green" : "border-line text-muted hover:text-ink")}
+                    onClick={() => selectTier(t)} disabled={busy !== null} title={`${t.human_role} · AI: ${t.ai_role}`}>
+                    {t.tier}
+                  </button>
+                ))}
+              </div>
+              {tierKey && (() => {
+                const t = tiers.find((x) => x.key === tierKey);
+                return t ? <p className="text-muted text-[12px] mt-1.5 mb-0">1 human : {t.ai_ratio} AI — {t.human_role} · AI: {t.ai_role}</p> : null;
+              })()}
             </div>
             <div className="my-2">
               <div className="flex justify-between text-[13px] font-semibold"><span>Engineers</span><span>{engineers}</span></div>
-              <input type="range" min={1} max={12} step={1} value={engineers} className="w-full accent-brand-orange" onChange={(e) => setEngineers(parseInt(e.target.value))} onMouseUp={applyKnobs} onTouchEnd={applyKnobs} />
+              <input type="range" min={1} max={12} step={1} value={engineers} className="w-full accent-brand-orange" onChange={(e) => setEngineers(parseInt(e.target.value))} onMouseUp={() => applyKnobs()} onTouchEnd={() => applyKnobs()} />
             </div>
             <button className="btn w-full mt-1" onClick={recost} disabled={busy !== null}>{busy === "recost" ? "Re-costing…" : "Re-cost with active rates"}</button>
             {busy === "knobs" && <div className="text-muted text-sm mt-2">Recomputing…</div>}
@@ -163,7 +186,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
         {(scenarios.length > 0 || !readOnly) && (
           <Section title="Staffing & development scenarios" actions={!readOnly ? <button className="btn text-[13px]" onClick={compareScenarios} disabled={busy !== null}>{busy === "scenarios" ? "Computing…" : "Compare models"}</button> : undefined}>
             {scenarios.length === 0 ? (
-              <p className="text-muted text-[13px] m-0">Compare traditional vs agentic development and US / nearshore / blended staffing on the same scope.</p>
+              <p className="text-muted text-[13px] m-0">Compare AI Tiers (1-5) and US / nearshore / blended staffing on the same scope.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-[13px]">
@@ -187,6 +210,26 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
               <table className="w-full border-collapse text-[13px]">
                 <thead><tr className="text-muted"><th className={TH}>Discipline</th><th className={TH}>Tier</th><th className={TH}>Loc</th><th className={TH}>Day rate</th></tr></thead>
                 <tbody>{g.team_plan.roles.map((r, i) => (<tr key={i}><td className={TD}>{r.discipline}</td><td className={TD}>{r.tier}</td><td className={TD}>{r.location}</td><td className={TD}>{r.day_rate ? money(r.day_rate) : <span className="text-muted">n/a</span>}</td></tr>))}</tbody>
+              </table>
+            </div>
+          </Section>
+        )}
+
+        {tiers.length > 0 && (
+          <Section title="AI Tiers — human-to-AI ratio" defaultOpen={false}>
+            <p className="text-muted text-[12px] mt-0 mb-2">Reference for the Deal-shaping AI Tier selector above.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-[13px]">
+                <thead><tr className="text-muted"><th className={TH}>Tier</th><th className={TH}>Human</th><th className={TH}>AI Agents</th><th className={TH}>Human role</th><th className={TH}>AI role</th></tr></thead>
+                <tbody>{tiers.map((t) => (
+                  <tr key={t.key} className={tierKey === t.key ? "bg-brand-mint/30" : undefined}>
+                    <td className={TD}>{t.tier}</td>
+                    <td className={TD}>{t.human_ratio}</td>
+                    <td className={TD}>{t.ai_ratio}</td>
+                    <td className={TD}>{t.human_role}</td>
+                    <td className={TD}>{t.ai_role}</td>
+                  </tr>
+                ))}</tbody>
               </table>
             </div>
           </Section>

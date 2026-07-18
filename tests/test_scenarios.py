@@ -35,23 +35,23 @@ def test_blended_rate_weights_locations():
     assert abs(blended - (us + ns) / 2) < 1e-6
 
 
-def test_agentic_faster_than_traditional():
+def test_higher_tier_faster_than_tier_one():
     graph = _graph()
     dev_models, _ = load_dev_models()
     card = RateCard(RATES)
-    trad = compute_scenario(graph, Scenario(id="t", name="Trad", dev_model="traditional"), card, dev_models)
-    agentic = compute_scenario(graph, Scenario(id="a", name="Agentic", dev_model="agentic"), card, dev_models)
-    # Agentic lifts velocity and automates some scope -> shorter duration.
-    assert agentic.duration_sprints.p50 < trad.duration_sprints.p50
-    assert agentic.effort_points.p50 < trad.effort_points.p50  # effort_multiplier < 1
+    tier1 = compute_scenario(graph, Scenario(id="t1", name="Tier 1", dev_model="tier-1"), card, dev_models)
+    tier5 = compute_scenario(graph, Scenario(id="t5", name="Tier 5", dev_model="tier-5"), card, dev_models)
+    # Higher AI-tier lifts velocity and automates some scope -> shorter duration.
+    assert tier5.duration_sprints.p50 < tier1.duration_sprints.p50
+    assert tier5.effort_points.p50 < tier1.effort_points.p50  # effort_multiplier < 1
 
 
 def test_nearshore_cheaper_than_onshore():
     graph = _graph()
     dev_models, _ = load_dev_models()
     card = RateCard(RATES)
-    us = compute_scenario(graph, Scenario(id="us", name="US", dev_model="traditional", location_mix={"US": 1.0}), card, dev_models)
-    ns = compute_scenario(graph, Scenario(id="ns", name="NS", dev_model="traditional", location_mix={"NS": 1.0}), card, dev_models)
+    us = compute_scenario(graph, Scenario(id="us", name="US", dev_model="tier-1", location_mix={"US": 1.0}), card, dev_models)
+    ns = compute_scenario(graph, Scenario(id="ns", name="NS", dev_model="tier-1", location_mix={"NS": 1.0}), card, dev_models)
     assert ns.total_cost < us.total_cost
 
 
@@ -60,7 +60,8 @@ def test_default_scenarios_span_models():
     dev_models, _ = load_dev_models()
     card = RateCard(RATES)
     results = [compute_scenario(graph, s, card, dev_models) for s in default_scenarios()]
-    assert len(results) == 4
+    # 5 tiers · US, plus Nearshore and 50/50-blend variants of the top tier.
+    assert len(results) == 7
     assert all(r.total_cost >= 0 for r in results)
 
 

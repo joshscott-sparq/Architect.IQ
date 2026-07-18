@@ -1,7 +1,7 @@
 """Scenario models: multiple staffing/development models per estimate (spec §5.5).
 
 A Scenario is a named set of assumptions applied to the same work breakdown —
-development model (traditional vs agentic), location mix (US / nearshore /
+AI Tier (human-to-AI-agent ratio, tier-1..tier-5), location mix (US / nearshore /
 blended), and team size — producing its own effort, duration, and cost so
 alternatives can be compared side by side.
 """
@@ -14,11 +14,11 @@ from .results import Percentiles
 
 
 class Scenario(BaseModel):
-    """A staffing/development model to evaluate against the work breakdown."""
+    """A staffing/AI-tier model to evaluate against the work breakdown."""
 
     id: str
     name: str
-    dev_model: str = Field(default="traditional", description="Key into the dev-model library.")
+    dev_model: str = Field(default="tier-1", description="Key into the AI Tier library.")
     location_mix: dict[str, float] = Field(
         default_factory=lambda: {"US": 1.0},
         description="Location weights, e.g. {'US': 0.5, 'NS': 0.5}.",

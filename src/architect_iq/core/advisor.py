@@ -61,15 +61,19 @@ def suggest_team_models(
         except Exception:
             raw = []
 
+    # Highest-leverage AI tier (top of the ladder) grounds the heuristic fallback.
+    top_tier_key = max(dev_models, key=lambda k: dev_models[k].get("tier", 0), default="tier-5")
+    top_tier_name = dev_models.get(top_tier_key, {}).get("name", top_tier_key)
+
     if not raw:
-        # Heuristic: agentic+nearshore is cheaper; agentic+larger team is faster.
+        # Heuristic: top-tier+nearshore is cheaper; top-tier+larger team is faster.
         raw = [
-            {"goal": "cheaper", "name": "Agentic · Nearshore", "dev_model": "agentic",
+            {"goal": "cheaper", "name": f"{top_tier_name} · Nearshore", "dev_model": top_tier_key,
              "location_mix": {"NS": 1.0}, "engineers": None,
-             "rationale": "Agentic automation plus nearshore rates cut cost."},
-            {"goal": "faster", "name": "Agentic · larger team", "dev_model": "agentic",
+             "rationale": f"{top_tier_name} automation plus nearshore rates cut cost."},
+            {"goal": "faster", "name": f"{top_tier_name} · larger team", "dev_model": top_tier_key,
              "location_mix": {"US": 1.0}, "engineers": int(round(base_eng * 2)) or 2,
-             "rationale": "Agentic velocity plus a larger team compresses the timeline."},
+             "rationale": f"{top_tier_name} velocity plus a larger team compresses the timeline."},
         ]
         if history:
             for s in raw:
@@ -77,9 +81,9 @@ def suggest_team_models(
 
     suggestions: list[TeamSuggestion] = []
     for i, s in enumerate(raw):
-        dev_model = s.get("dev_model", "agentic")
+        dev_model = s.get("dev_model", top_tier_key)
         if dev_model not in dev_models:
-            dev_model = "agentic"
+            dev_model = top_tier_key
         scenario = Scenario(
             id=f"suggest-{i+1}",
             name=s.get("name", dev_model),

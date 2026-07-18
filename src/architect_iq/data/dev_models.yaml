@@ -1,29 +1,75 @@
-# Development-model library (data, not code — add a model without a code change).
-# Each model carries the assumptions that distinguish a delivery approach:
-#   ai_boost           velocity uplift (§2.3)
-#   effort_multiplier  scope automation (agentic codegen/test-gen reduces build effort)
-version: "1.0.0"
+# AI Tiers: human-to-AI-agent ratio ladder (data, not code — add/adjust a tier
+# without a code change). Replaces the old 3-model traditional/ai-assisted/
+# agentic library with 5 tiers of increasing AI-agent leverage per human.
+#   tier               sort order (1 = fully manual, 5 = most AI-leveraged)
+#   human_ratio        humans in the loop (always 1 — the denominator)
+#   ai_ratio           AI agents per human at this tier
+#   human_role         what the human does at this tier
+#   ai_role            what the AI does at this tier
+#   ai_boost           velocity uplift (§2.3) — first-pass mapping from ai_ratio,
+#                      see DECISIONS.md D23 to recalibrate against actuals
+#   effort_multiplier  scope automation (more AI leverage reduces build effort)
+version: "2.0.0"
 
 models:
-  traditional:
-    name: "Traditional development"
+  tier-1:
+    name: "Tier 1"
+    tier: 1
+    human_ratio: 1
+    ai_ratio: 0
+    human_role: "Author, designer, reviewer"
+    ai_role: "None"
     ai_boost: 0.0
     effort_multiplier: 1.0
     assumptions:
-      - "Standard SDLC; no AI-assisted development uplift."
+      - "Fully manual delivery; no AI agent involvement."
       - "Velocity at baseline points per engineer per sprint."
-  ai-assisted:
-    name: "AI-assisted development"
-    ai_boost: 0.2
-    effort_multiplier: 0.95
+  tier-2:
+    name: "Tier 2"
+    tier: 2
+    human_ratio: 1
+    ai_ratio: 0
+    human_role: "Author with assist"
+    ai_role: "Assistance, autocompletion"
+    ai_boost: 0.15
+    effort_multiplier: 0.97
     assumptions:
-      - "Developers use AI coding assistants; ~20% velocity uplift."
-      - "Modest scope automation (boilerplate, tests)."
-  agentic:
-    name: "Agentic development"
-    ai_boost: 0.35
-    effort_multiplier: 0.85
+      - "Developers use AI assistance/autocompletion; ~15% velocity uplift."
+      - "AI assists rather than operating independently (ratio rounds to 0)."
+  tier-3:
+    name: "Tier 3"
+    tier: 3
+    human_ratio: 1
+    ai_ratio: 1
+    human_role: "Director, integrator, reviewer"
+    ai_role: "Builder"
+    ai_boost: 0.30
+    effort_multiplier: 0.90
     assumptions:
-      - "Agentic workflows drive ~35% velocity uplift."
-      - "~15% of build effort automated (codegen, test generation, migration)."
-      - "Requires strong engineering oversight and an evaluation harness."
+      - "One AI agent builds per human directing/integrating/reviewing; ~30% velocity uplift."
+      - "~10% of build effort automated."
+  tier-4:
+    name: "Tier 4"
+    tier: 4
+    human_ratio: 1
+    ai_ratio: 5
+    human_role: "Architect, quality gate, exception handler"
+    ai_role: "Author, reviewer"
+    ai_boost: 0.45
+    effort_multiplier: 0.80
+    assumptions:
+      - "Five AI agents author/review per human architect; ~45% velocity uplift."
+      - "~20% of build effort automated; human is a quality gate and exception handler."
+  tier-5:
+    name: "Tier 5"
+    tier: 5
+    human_ratio: 1
+    ai_ratio: 20
+    human_role: "Spec author, milestone arbiter, escalation handler"
+    ai_role: "Assistant Architect, author, reviewer"
+    ai_boost: 0.60
+    effort_multiplier: 0.65
+    assumptions:
+      - "Twenty AI agents operate per human across spec, build, and review; ~60% velocity uplift."
+      - "~35% of build effort automated; human sets specs and arbitrates milestones/escalations."
+      - "Requires strong evaluation harnesses and guardrails at this ratio."

@@ -1,4 +1,4 @@
-import type { EstimateResponse, EstimateSummary, Pattern } from "./types";
+import type { AiTier, EstimateResponse, EstimateSummary, Pattern } from "./types";
 
 // --- Token store (bearer, persisted) ---
 const TOKEN_KEY = "aiq_token";
@@ -61,9 +61,9 @@ export const api = {
   providers: () => http<{ local: boolean; google: boolean }>("/api/auth/providers"),
   googleLoginUrl: () => http<{ url: string }>("/api/auth/google/login"),
 
-  // --- Patterns / dev models ---
+  // --- Patterns / AI tiers ---
   listPatterns: () => http<Pattern[]>("/api/patterns"),
-  listDevModels: () => http<{ key: string; name: string }[]>("/api/dev-models"),
+  listAiTiers: () => http<AiTier[]>("/api/ai-tiers"),
 
   // --- Estimates ---
   listEstimates: () => http<EstimateSummary[]>("/api/estimates"),

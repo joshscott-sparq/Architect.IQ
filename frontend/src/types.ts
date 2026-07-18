@@ -174,3 +174,16 @@ export interface Pattern {
   description: string;
   when_to_use: string;
 }
+
+export interface AiTier {
+  key: string;
+  name: string;
+  tier: number;
+  human_ratio: number;
+  ai_ratio: number;
+  human_role: string;
+  ai_role: string;
+  ai_boost: number;
+  effort_multiplier: number;
+  assumptions: string[];
+}

@@ -152,7 +152,8 @@ def load_pricing() -> tuple[list[RateRow], str, str]:
 
 @lru_cache(maxsize=1)
 def load_dev_models() -> tuple[dict[str, dict], str]:
-    """Return (dev_model_key -> {name, ai_boost, effort_multiplier, assumptions}, version)."""
+    """Return (tier_key -> {name, tier, human_ratio, ai_ratio, human_role, ai_role,
+    ai_boost, effort_multiplier, assumptions}, version) — the AI Tier ladder."""
     raw = _read_yaml("dev_models.yaml")
     return raw["models"], raw["version"]
 
