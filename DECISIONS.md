@@ -56,6 +56,32 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D18. Auth, RBAC, domain model, sharing (local login now, OIDC-ready)
+**Call:** Added users/roles, an Account -> Opportunity -> Estimate domain model,
+estimate sharing, and public links.
+- **Auth:** local email+password (PBKDF2, stdlib) issuing JWTs (HS256, PyJWT)
+  signed with `ARCHITECTIQ_SECRET`. Google OIDC endpoints are scaffolded behind
+  `GOOGLE_CLIENT_ID/SECRET` (untested in sandbox); JumpCloud slots into the same
+  `auth/oidc.py` seam. `.env` loaded via python-dotenv.
+- **Roles:** admin (all + manage users/accounts/opportunities/rates), user (owns
+  estimates; sees own + shared; training/memory still uses ALL history), client
+  (read-only on assigned opportunities). Enforced in `auth/access.py` +
+  FastAPI deps.
+- **Domain:** an opportunity has many estimates, one `active_estimate_id`
+  (official). Estimates carry `owner_id` + `opportunity_id` (store migration adds
+  the columns). Salesforce account/opportunity IDs and a Notion page ref are
+  modeled; Notion notes come from `integrations/notion.py` (stub now, live client
+  behind `NOTION_API_KEY`).
+- **Sharing:** per-estimate shares at view/comment/edit (by email or by a known
+  user's name), public view-only share-link tokens (no login, `/shared/{token}`),
+  and comments (comment/edit permission). Effective permission = max of
+  role/ownership/assignment/share.
+- **Sample logins** seeded (admin/user/client, see README) for now; production
+  sets `ARCHITECTIQ_ADMIN_PASSWORD` and rotates.
+**Why:** Owner asked for a login with three roles, the SF/Notion-linked domain
+model, estimate sharing at three permission levels with public view-only links,
+sharing by email or name, sample per-role logins, and Google/JumpCloud SSO.
+
 ## D17. Multiple saved rate cards (one active, one default)
 **Call:** Rate cards are persisted in SQLite (shared DB): multiple named cards,
 exactly one active, one default (seeded from the placeholder pricing file). The

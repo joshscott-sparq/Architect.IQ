@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import type { DeferralSuggestion, EstimateResponse, Percentiles, TeamSuggestion } from "../types";
 import { MermaidDiagram } from "./MermaidDiagram";
+import { SharePanel } from "./SharePanel";
 
 const money = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -19,7 +20,8 @@ function Stat({ label, value, sub, range, fmt }: { label: string; value: string;
   );
 }
 
-export function EstimateView({ initial }: { initial: EstimateResponse }) {
+export function EstimateView({ initial, canEdit = true, canComment = true, isPublic = false }: { initial: EstimateResponse; canEdit?: boolean; canComment?: boolean; isPublic?: boolean }) {
+  const readOnly = !canEdit;
   const [est, setEst] = useState(initial);
   const [aiBoost, setAiBoost] = useState(0);
   const [engineers, setEngineers] = useState(
@@ -119,6 +121,7 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
         </div>
 
         <div>
+          {!readOnly && (
           <div className="card">
             <h2 className="card-h">Deal-shaping</h2>
             <div className="my-3.5">
@@ -139,6 +142,7 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
             </button>
             {busy === "knobs" && <div className="text-muted text-sm mt-2">Recomputing…</div>}
           </div>
+          )}
 
           {!oralsMode && (
             <div className="card">
@@ -184,9 +188,11 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
       <div className="card">
         <div className="flex items-center gap-3 mb-3">
           <h2 className="card-h mb-0">Staffing &amp; development scenarios</h2>
-          <button className="btn ml-auto" onClick={compareScenarios} disabled={busy !== null}>
-            {busy === "scenarios" ? "Computing…" : "Compare models"}
-          </button>
+          {!readOnly && (
+            <button className="btn ml-auto" onClick={compareScenarios} disabled={busy !== null}>
+              {busy === "scenarios" ? "Computing…" : "Compare models"}
+            </button>
+          )}
         </div>
         {scenarios.length === 0 ? (
           <p className="text-muted text-[13px] m-0">
@@ -226,9 +232,11 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
             Optimization suggestions
             <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span>
           </h2>
-          <button className="btn ml-auto" onClick={loadSuggestions} disabled={busy !== null}>
-            {busy === "suggest" ? "Thinking…" : "Suggest cheaper / faster"}
-          </button>
+          {!readOnly && (
+            <button className="btn ml-auto" onClick={loadSuggestions} disabled={busy !== null}>
+              {busy === "suggest" ? "Thinking…" : "Suggest cheaper / faster"}
+            </button>
+          )}
         </div>
         {!team && !deferrals ? (
           <p className="text-muted text-[13px] m-0">
@@ -266,6 +274,13 @@ export function EstimateView({ initial }: { initial: EstimateResponse }) {
           {g.assumptions.map((a, i) => <li key={i}>{a}</li>)}
         </ul>
       </div>
+
+      {!isPublic && (
+        <div className="card">
+          <h2 className="card-h">Sharing &amp; comments</h2>
+          <SharePanel estimateId={est.estimate_id} canEdit={canEdit} canComment={canComment} />
+        </div>
+      )}
     </div>
   );
 }

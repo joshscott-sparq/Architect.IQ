@@ -44,7 +44,36 @@ every artifact is a projection of one object. See
 - Reference-class retrieval surfaces similar past estimates; pattern priors
   self-tune from past estimates and recorded delivery actuals.
 
-**Demo mode** — `npm run demo` auto-loads curated sample data covering every feature.
+**Accounts, opportunities & access**
+- Domain model: Account → Opportunity → Estimate. An opportunity has many
+  estimates but one active/official one. Salesforce account/opportunity IDs and a
+  Notion page ref are linked per opportunity; Notion notes surface in-app.
+- **Roles:** Admin (manage everything + users/accounts/opportunities/rates),
+  User (owns estimates; sees own + shared; memory/training still uses all
+  history), Client (read-only on assigned opportunities).
+- **Sharing:** share an estimate by email or by a known user's name at
+  view / comment / edit; generate public **view-only links** that work without
+  login; comment threads on estimates.
+- **Auth:** local email+password now, JWT sessions; Google SSO drops in via env
+  config, JumpCloud via the same OIDC path.
+
+**Demo mode** — `npm run demo` auto-logs in as admin and loads curated sample data
+covering every feature: three roles, accounts/opportunities, scenarios, a shared
+estimate, a public link, and comments.
+
+## Sample logins (dev)
+
+Seeded on first run for now (set `ARCHITECTIQ_ADMIN_PASSWORD` and rotate in
+production):
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@architect.iq` | `admin123` |
+| User | `user@architect.iq` | `user123` |
+| Client | `client@architect.iq` | `client123` |
+
+The sample client is assigned to the Acme Insurance account in demo mode, so they
+see those estimates read-only.
 
 ## Architecture
 
@@ -69,6 +98,10 @@ Copy [`.env.example`](.env.example) to `.env` (gitignored) and set values:
 | `ARCHITECTIQ_DISABLE_LLM` | Force the deterministic path even with a key. |
 | `ARCHITECTIQ_DB` | SQLite path (default `architect_iq.db`). |
 | `ARCHITECTIQ_CORS` | Allowed API origins (comma-separated). |
+| `ARCHITECTIQ_SECRET` | **Required in production** — JWT signing secret (32+ bytes). |
+| `ARCHITECTIQ_ADMIN_EMAIL` / `ARCHITECTIQ_ADMIN_PASSWORD` | Override the seeded admin credentials. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | Enable Google SSO. |
+| `NOTION_API_KEY` | Enable live Notion notes (otherwise sample notes). |
 
 Real pricing is never committed: `data/pricing.local.yaml` (gitignored) overrides
 the committed placeholder `pricing.example.yaml`. You can also manage rate cards

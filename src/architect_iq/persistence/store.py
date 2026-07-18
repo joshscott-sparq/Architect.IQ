@@ -44,13 +44,15 @@ class EstimateSummary:
     cost_p50: float | None
     effort_p50: float | None
     updated_at: str
+    owner_id: str | None = None
+    opportunity_id: str | None = None
 
 
 class EstimateRepository(ABC):
     """Interface for storing and retrieving versioned estimates."""
 
     @abstractmethod
-    def create(self, graph: SolutionGraph) -> StoredEstimate: ...
+    def create(self, graph: SolutionGraph, owner_id: str | None = None, opportunity_id: str | None = None) -> StoredEstimate: ...
 
     @abstractmethod
     def update(self, estimate_id: str, graph: SolutionGraph) -> StoredEstimate: ...
@@ -74,6 +76,16 @@ class SQLiteEstimateRepository(EstimateRepository):
     def __init__(self, db_path: str | Path = "architect_iq.db"):
         self.db_path = str(db_path)
         self._init_schema()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add owner_id / opportunity_id to estimates if an older DB lacks them."""
+        with self._connect() as conn:
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(estimates)").fetchall()}
+            if "owner_id" not in cols:
+                conn.execute("ALTER TABLE estimates ADD COLUMN owner_id TEXT")
+            if "opportunity_id" not in cols:
+                conn.execute("ALTER TABLE estimates ADD COLUMN opportunity_id TEXT")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -102,15 +114,15 @@ class SQLiteEstimateRepository(EstimateRepository):
                 """
             )
 
-    def create(self, graph: SolutionGraph) -> StoredEstimate:
+    def create(self, graph: SolutionGraph, owner_id: str | None = None, opportunity_id: str | None = None) -> StoredEstimate:
         estimate_id = _new_id()
         now = _now()
         payload = graph.model_dump_json()
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO estimates (id, project_name, current_version, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (estimate_id, graph.project_name, 1, now, now),
+                "INSERT INTO estimates (id, project_name, current_version, created_at, updated_at, owner_id, opportunity_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (estimate_id, graph.project_name, 1, now, now, owner_id, opportunity_id),
             )
             conn.execute(
                 "INSERT INTO estimate_versions (estimate_id, version, graph_json, created_at) "
@@ -172,14 +184,23 @@ class SQLiteEstimateRepository(EstimateRepository):
         summaries: list[EstimateSummary] = []
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, updated_at FROM estimates ORDER BY updated_at DESC"
+                "SELECT id, updated_at, owner_id, opportunity_id FROM estimates ORDER BY updated_at DESC"
             ).fetchall()
         for row in rows:
             stored = self.get(row["id"])
             if stored is None:
                 continue
-            summaries.append(self._summarize(stored, row["updated_at"]))
+            summaries.append(self._summarize(stored, row["updated_at"], row["owner_id"], row["opportunity_id"]))
         return summaries
+
+    def owner_and_opportunity(self, estimate_id: str) -> tuple[str | None, str | None]:
+        with self._connect() as conn:
+            row = conn.execute("SELECT owner_id, opportunity_id FROM estimates WHERE id = ?", (estimate_id,)).fetchone()
+        return (row["owner_id"], row["opportunity_id"]) if row else (None, None)
+
+    def set_opportunity(self, estimate_id: str, opportunity_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE estimates SET opportunity_id = ? WHERE id = ?", (opportunity_id, estimate_id))
 
     def all_latest(self) -> list[StoredEstimate]:
         with self._connect() as conn:
@@ -187,7 +208,8 @@ class SQLiteEstimateRepository(EstimateRepository):
         return [s for s in (self.get(r["id"]) for r in rows) if s is not None]
 
     @staticmethod
-    def _summarize(stored: StoredEstimate, updated_at: str) -> EstimateSummary:
+    def _summarize(stored: StoredEstimate, updated_at: str, owner_id: str | None = None,
+                   opportunity_id: str | None = None) -> EstimateSummary:
         g = stored.graph
         return EstimateSummary(
             estimate_id=stored.estimate_id,
@@ -197,4 +219,6 @@ class SQLiteEstimateRepository(EstimateRepository):
             cost_p50=g.monte_carlo.cost.p50 if g.monte_carlo else None,
             effort_p50=g.monte_carlo.effort_points.p50 if g.monte_carlo else None,
             updated_at=updated_at,
+            owner_id=owner_id,
+            opportunity_id=opportunity_id,
         )

@@ -57,13 +57,9 @@ def test_recost_changes_price_not_effort(tmp_path):
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("ARCHITECTIQ_DB", str(tmp_path / "api.db"))
-    import importlib
+    from conftest import build_client
 
-    from architect_iq.api import app as app_module
-
-    importlib.reload(app_module)
-    return TestClient(app_module.app)
+    return build_client(tmp_path, monkeypatch, role="admin")
 
 
 def test_rate_card_management(client):

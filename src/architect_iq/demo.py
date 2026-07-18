@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from .core.recompute import RecomputeOverrides, recompute
 from .memory.priors import ActualOutcome
+from .models.org import Permission
 from .models.results import ClientContext
 from .service import EstimateService
 
@@ -126,32 +127,75 @@ def is_seeded(service: EstimateService) -> bool:
     return any(sc.project_name in names for sc in DEMO_SCENARIOS)
 
 
+def _slug(text: str) -> str:
+    return "".join(c.lower() if c.isalnum() else "-" for c in text).strip("-")
+
+
 def seed_demo(service: EstimateService) -> dict:
-    """Seed demo scenarios idempotently. Returns a summary."""
+    """Seed demo scenarios idempotently, with org structure and ownership.
+
+    Each scenario name is `[Demo] <Account> — <Opportunity>`; we create the
+    account and opportunity (with Salesforce ids + a Notion page ref), own the
+    estimates as the sample user, and assign the sample client to one account so
+    role differences are visible in demo mode.
+    """
+    directory = service.directory
     existing = {s.project_name for s in service.list_estimates()}
     created: list[dict] = []
 
-    for sc in DEMO_SCENARIOS:
+    sample_user = directory.get_user_by_email("user@architect.iq")
+    owner_id = sample_user.id if sample_user else None
+    accounts = {a.name: a for a in directory.list_accounts()}
+
+    for i, sc in enumerate(DEMO_SCENARIOS):
         if sc.project_name in existing:
             continue
-        stored, refs = service.create_estimate(sc.project_name, sc.prd_text, sc.context)
+        label = sc.project_name.replace("[Demo] ", "")
+        account_name, _, opp_name = label.partition(" — ")
+        opp_name = opp_name or account_name
 
+        account = accounts.get(account_name)
+        if account is None:
+            account = directory.create_account(account_name, sf_account_id=f"001DEMO{i:04d}")
+            accounts[account_name] = account
+        opp = directory.create_opportunity(
+            name=opp_name, account_id=account.id,
+            sf_opportunity_id=f"006DEMO{i:04d}",
+            notion_page_ref=f"https://www.notion.so/demo-{_slug(opp_name)}",
+        )
+
+        stored, refs = service.create_estimate(
+            sc.project_name, sc.prd_text, sc.context, owner_id=owner_id, opportunity_id=opp.id
+        )
         if sc.recompute is not None:
-            updated = recompute(stored.graph, sc.recompute)
-            stored = service.update_estimate(stored.estimate_id, updated)
-
+            stored = service.update_estimate(stored.estimate_id, recompute(stored.graph, sc.recompute))
         if sc.actual_points is not None:
-            service.record_actuals(
-                ActualOutcome(estimate_id=stored.estimate_id, delivered_points=sc.actual_points)
-            )
+            service.record_actuals(ActualOutcome(estimate_id=stored.estimate_id, delivered_points=sc.actual_points))
 
         created.append({
-            "estimate_id": stored.estimate_id,
-            "project_name": sc.project_name,
-            "version": stored.version,
-            "pattern_ids": stored.graph.matched_pattern_ids,
-            "references": len(refs),
+            "estimate_id": stored.estimate_id, "project_name": sc.project_name,
+            "version": stored.version, "pattern_ids": stored.graph.matched_pattern_ids,
+            "opportunity_id": opp.id, "references": len(refs),
         })
+
+    # Assign the sample client to the first account so they see read-only estimates.
+    client = directory.get_user_by_email("client@architect.iq")
+    if client and accounts and not directory.visible_opportunity_ids(client.id):
+        first = accounts.get("Acme Insurance") or next(iter(accounts.values()))
+        directory.assign_client(client.id, account_id=first.id)
+
+    # Model the remaining features on the first newly-created estimate: computed
+    # scenarios, a share to the sample user, a public link, and comments.
+    if created:
+        lead = created[0]["estimate_id"]
+        try:
+            service.compute_scenarios(lead)
+        except Exception:  # noqa: BLE001 - scenarios are best-effort in seeding
+            pass
+        directory.add_share(lead, "user@architect.iq", Permission.COMMENT)
+        directory.create_share_link(lead, "admin@architect.iq")
+        directory.add_comment(lead, "Sample Client", "Can we see a nearshore staffing option for this?")
+        directory.add_comment(lead, "Administrator", "Added an agentic + nearshore scenario below — ~60% cost reduction.")
 
     return {"created": created, "created_count": len(created), "total": len(service.list_estimates())}
 

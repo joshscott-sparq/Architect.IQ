@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { EstimateResponse } from "../types";
 
@@ -8,6 +8,12 @@ function splitList(s: string): string[] {
 
 export function NewEstimate({ onCreated }: { onCreated: (e: EstimateResponse) => void }) {
   const [projectName, setProjectName] = useState("");
+  const [opportunityId, setOpportunityId] = useState("");
+  const [opps, setOpps] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    api.listOpportunities().then(setOpps).catch(() => {});
+  }, []);
   const [prd, setPrd] = useState("");
   const [tech, setTech] = useState("");
   const [compliance, setCompliance] = useState("");
@@ -37,6 +43,7 @@ export function NewEstimate({ onCreated }: { onCreated: (e: EstimateResponse) =>
       const resp = await api.createEstimate({
         project_name: projectName,
         prd_text: prd,
+        opportunity_id: opportunityId || null,
         client_context: {
           tech_stack: splitList(tech),
           compliance_posture: splitList(compliance),
@@ -58,6 +65,11 @@ export function NewEstimate({ onCreated }: { onCreated: (e: EstimateResponse) =>
           <h2 className="card-h">Requirements</h2>
           <label className="label">Project name</label>
           <input className="field" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Acme RAG Platform" />
+          <label className="label">Opportunity (optional)</label>
+          <select className="field" value={opportunityId} onChange={(e) => setOpportunityId(e.target.value)}>
+            <option value="">— none —</option>
+            {opps.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
           <label className="label">PRD / feature list</label>
           <div
             className={

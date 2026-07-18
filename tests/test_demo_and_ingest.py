@@ -12,14 +12,9 @@ from architect_iq.service import EstimateService
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("ARCHITECTIQ_DB", str(tmp_path / "api.db"))
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    import importlib
+    from conftest import build_client
 
-    from architect_iq.api import app as app_module
-
-    importlib.reload(app_module)
-    return TestClient(app_module.app)
+    return build_client(tmp_path, monkeypatch, role="admin")
 
 
 def test_seed_demo_covers_all_patterns(tmp_path):

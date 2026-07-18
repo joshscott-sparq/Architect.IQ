@@ -19,6 +19,7 @@ from .models.results import ClientContext
 from .models.scenario import DeferralSuggestion, Scenario, TeamSuggestion
 from .models.solution_graph import SolutionGraph
 from .models.team import RateRow
+from .persistence.directory import SQLiteDirectoryRepository
 from .persistence.rate_cards import SavedRateCard, SQLiteRateCardRepository
 from .persistence.store import EstimateRepository, SQLiteEstimateRepository, StoredEstimate
 
@@ -28,8 +29,11 @@ class EstimateService:
         self.repo = repo or SQLiteEstimateRepository(db_path)
         # Actuals held in-process for now; a table lands with the Phase 4 loop.
         self._actuals: dict[str, ActualOutcome] = {}
+        resolved_db = getattr(self.repo, "db_path", db_path)
         # Persisted rate cards share the estimate database (one active, one default).
-        self.rate_cards = SQLiteRateCardRepository(getattr(self.repo, "db_path", db_path))
+        self.rate_cards = SQLiteRateCardRepository(resolved_db)
+        # Users, accounts, opportunities, assignments, shares, links, comments.
+        self.directory = SQLiteDirectoryRepository(resolved_db)
 
     def active_rates(self) -> tuple[list[RateRow], str]:
         """The rate rows in effect (from the active card) and a source label."""
@@ -65,6 +69,8 @@ class EstimateService:
         prd_text: str,
         context: ClientContext | None = None,
         match_override: str | None = None,
+        owner_id: str | None = None,
+        opportunity_id: str | None = None,
     ) -> tuple[StoredEstimate, list[Reference]]:
         """Build with memory-tuned priors, persist, and return with references."""
         context = context or ClientContext()
@@ -90,8 +96,23 @@ class EstimateService:
             rates=rates,
         )
         references = find_references(prd_text, context, graph.matched_pattern_ids, past)
-        stored = self.repo.create(graph)
+        stored = self.repo.create(graph, owner_id=owner_id, opportunity_id=opportunity_id)
+        # First estimate on an opportunity becomes its active/official one.
+        if opportunity_id:
+            opp = self.directory.get_opportunity(opportunity_id)
+            if opp and not opp.active_estimate_id:
+                self.directory.set_active_estimate(opportunity_id, stored.estimate_id)
         return stored, references
+
+    def share_principal_email(self, principal: str) -> str:
+        """Resolve a share target given by email or by a known user's name."""
+        principal = principal.strip()
+        if "@" in principal:
+            return principal.lower()
+        match = next((u for u in self.directory.list_users() if u.name.lower() == principal.lower()), None)
+        if match:
+            return match.email
+        raise ValueError(f"no user found named {principal!r}; share by email instead")
 
     def get_estimate(self, estimate_id: str, version: int | None = None) -> StoredEstimate | None:
         return self.repo.get(estimate_id, version)

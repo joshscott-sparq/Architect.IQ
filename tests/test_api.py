@@ -8,14 +8,9 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    # Point the app at a throwaway DB before importing it.
-    monkeypatch.setenv("ARCHITECTIQ_DB", str(tmp_path / "api.db"))
-    import importlib
+    from conftest import build_client
 
-    from architect_iq.api import app as app_module
-
-    importlib.reload(app_module)
-    return TestClient(app_module.app)
+    return build_client(tmp_path, monkeypatch, role="admin")
 
 
 RAG_PRD = "- retrieval augmented generation over the knowledge base\n- embeddings vector store databricks\n- grounded llm answers"
