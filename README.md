@@ -144,6 +144,30 @@ Real pricing is never committed: `data/pricing.local.yaml` (gitignored) override
 the committed placeholder `pricing.example.yaml`. You can also manage rate cards
 at runtime in the **Rates** tab. Schema: [`data/SCHEMA.md`](src/architect_iq/data/SCHEMA.md).
 
+## Quick start
+
+The app is two processes — a FastAPI backend and a Vite frontend — run at the same
+time in **two terminals**. Start the backend first, then the frontend.
+
+Terminal 1 (backend, port 8000):
+
+```bash
+uv venv --python 3.12
+uv pip install -e ".[dev]"
+.venv/bin/python -m uvicorn architect_iq.api.app:app --port 8000 --reload
+```
+
+Terminal 2 (frontend, proxies `/api` → `:8000`):
+
+```bash
+cd frontend
+npm install
+npm run demo     # demo mode: auto-logs in as admin with sample data (easiest first run)
+# npm run dev    # normal app (log in with a sample account below)
+```
+
+Open the URL Vite prints (default http://localhost:5173).
+
 ## Local development
 
 Backend — Python 3.12 (this repo uses [`uv`](https://docs.astral.sh/uv/)):
