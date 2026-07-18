@@ -28,7 +28,7 @@ export function EstimatesList({ onOpen }: { onOpen: (id: string) => void }) {
     <div>
       {items.map((it) => (
         <div key={it.estimate_id} onClick={() => onOpen(it.estimate_id)}
-          className="flex items-center gap-3 px-3.5 py-3 border border-line rounded-xl mb-2 bg-white cursor-pointer hover:border-brand-orange">
+          className="flex items-center gap-3 px-3.5 py-3 border border-line rounded-xl mb-2 bg-surface cursor-pointer hover:border-brand-orange">
           <div className="flex-1">
             <b>{it.project_name}</b>
             <div className="text-muted text-xs">{(it.pattern_ids[0] ?? "no pattern")} · v{it.version}</div>

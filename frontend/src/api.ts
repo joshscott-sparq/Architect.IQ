@@ -83,6 +83,7 @@ export const api = {
     opportunity_id?: string | null;
   }) => http<EstimateResponse>(`/api/estimates/${id}/rebuild`, jsonBody(body)),
   cloneEstimate: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/clone`, { method: "POST" }),
+  setTags: (id: string, tags: string[]) => http<EstimateResponse>(`/api/estimates/${id}/tags`, jsonBody({ tags })),
   recompute: (id: string, overrides: { ai_boost?: number; engineer_count?: number }) =>
     http<EstimateResponse>(`/api/estimates/${id}/recompute`, jsonBody(overrides)),
   recost: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/recost`, { method: "POST" }),

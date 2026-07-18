@@ -1,0 +1,255 @@
+discipline,tier,location,hourly_rate
+AI & ML,Associate,US,80
+AI & ML,Associate,NS,54
+AI & ML,Analyst,US,110
+AI & ML,Analyst,NS,73
+AI & ML,Senior,US,140
+AI & ML,Senior,NS,90
+AI & ML,Senior Lead,US,160
+AI & ML,Senior Lead,NS,105
+AI & ML,Principal,US,180
+AI & ML,Principal,NS,115
+AI & ML,Sr Principal,US,210
+AI & ML,Sr Principal,NS,125
+AI & ML,Director,US,240
+AI & ML,Director,NS,135
+Data Engineering,Associate,US,80
+Data Engineering,Associate,NS,54
+Data Engineering,Analyst,US,110
+Data Engineering,Analyst,NS,73
+Data Engineering,Senior,US,140
+Data Engineering,Senior,NS,90
+Data Engineering,Senior Lead,US,160
+Data Engineering,Senior Lead,NS,105
+Data Engineering,Principal,US,180
+Data Engineering,Principal,NS,115
+Data Engineering,Sr Principal,US,210
+Data Engineering,Sr Principal,NS,125
+Data Engineering,Director,US,240
+Data Engineering,Director,NS,135
+Data Visualization,Associate,US,75
+Data Visualization,Associate,NS,44
+Data Visualization,Analyst,US,95
+Data Visualization,Analyst,NS,55
+Data Visualization,Senior,US,120
+Data Visualization,Senior,NS,75
+Data Visualization,Senior Lead,US,150
+Data Visualization,Senior Lead,NS,90
+Data Visualization,Principal,US,175
+Data Visualization,Principal,NS,100
+Data Visualization,Sr Principal,US,195
+Data Visualization,Sr Principal,NS,110
+Data Visualization,Director,US,225
+Data Visualization,Director,NS,125
+Business Analysis,Associate,US,70
+Business Analysis,Associate,NS,35
+Business Analysis,Analyst,US,87
+Business Analysis,Analyst,NS,45
+Business Analysis,Senior,US,110
+Business Analysis,Senior,NS,65
+Business Analysis,Senior Lead,US,134
+Business Analysis,Senior Lead,NS,83
+Business Analysis,Principal,US,160
+Business Analysis,Principal,NS,92
+Business Analysis,Sr Principal,US,190
+Business Analysis,Sr Principal,NS,100
+Business Analysis,Director,US,220
+Business Analysis,Director,NS,110
+Financial Program Management,Associate,US,75
+Financial Program Management,Associate,NS,44
+Financial Program Management,Analyst,US,95
+Financial Program Management,Analyst,NS,55
+Financial Program Management,Senior,US,120
+Financial Program Management,Senior,NS,75
+Financial Program Management,Senior Lead,US,150
+Financial Program Management,Senior Lead,NS,90
+Financial Program Management,Principal,US,175
+Financial Program Management,Principal,NS,100
+Financial Program Management,Sr Principal,US,195
+Financial Program Management,Sr Principal,NS,110
+Financial Program Management,Director,US,225
+Financial Program Management,Director,NS,125
+Project & Program Management,Associate,US,75
+Project & Program Management,Associate,NS,44
+Project & Program Management,Analyst,US,95
+Project & Program Management,Analyst,NS,55
+Project & Program Management,Senior,US,120
+Project & Program Management,Senior,NS,75
+Project & Program Management,Senior Lead,US,150
+Project & Program Management,Senior Lead,NS,90
+Project & Program Management,Principal,US,175
+Project & Program Management,Principal,NS,100
+Project & Program Management,Sr Principal,US,195
+Project & Program Management,Sr Principal,NS,110
+Project & Program Management,Director,US,225
+Project & Program Management,Director,NS,125
+Quality Automation Engineering,Associate,US,70
+Quality Automation Engineering,Associate,NS,35
+Quality Automation Engineering,Analyst,US,87
+Quality Automation Engineering,Analyst,NS,45
+Quality Automation Engineering,Senior,US,110
+Quality Automation Engineering,Senior,NS,65
+Quality Automation Engineering,Senior Lead,US,134
+Quality Automation Engineering,Senior Lead,NS,83
+Quality Automation Engineering,Principal,US,160
+Quality Automation Engineering,Principal,NS,92
+Quality Automation Engineering,Sr Principal,US,190
+Quality Automation Engineering,Sr Principal,NS,100
+Quality Automation Engineering,Director,US,220
+Quality Automation Engineering,Director,NS,110
+Quality Engineering,Associate,US,65
+Quality Engineering,Associate,NS,35
+Quality Engineering,Analyst,US,75
+Quality Engineering,Analyst,NS,43
+Quality Engineering,Senior,US,95
+Quality Engineering,Senior,NS,55
+Quality Engineering,Senior Lead,US,115
+Quality Engineering,Senior Lead,NS,65
+Quality Engineering,Principal,US,135
+Quality Engineering,Principal,NS,75
+Quality Engineering,Sr Principal,US,155
+Quality Engineering,Sr Principal,NS,90
+Quality Engineering,Director,US,175
+Quality Engineering,Director,NS,100
+Cloud,Associate,US,80
+Cloud,Associate,NS,54
+Cloud,Analyst,US,100
+Cloud,Analyst,NS,73
+Cloud,Senior,US,140
+Cloud,Senior,NS,90
+Cloud,Senior Lead,US,160
+Cloud,Senior Lead,NS,105
+Cloud,Principal,US,180
+Cloud,Principal,NS,115
+Cloud,Sr Principal,US,210
+Cloud,Sr Principal,NS,125
+Cloud,Director,US,240
+Cloud,Director,NS,135
+Full Stack,Associate,US,75
+Full Stack,Associate,NS,44
+Full Stack,Analyst,US,95
+Full Stack,Analyst,NS,55
+Full Stack,Senior,US,120
+Full Stack,Senior,NS,75
+Full Stack,Senior Lead,US,150
+Full Stack,Senior Lead,NS,90
+Full Stack,Principal,US,175
+Full Stack,Principal,NS,100
+Full Stack,Sr Principal,US,195
+Full Stack,Sr Principal,NS,110
+Full Stack,Director,US,225
+Full Stack,Director,NS,125
+Java,Associate,US,70
+Java,Associate,NS,44
+Java,Analyst,US,87
+Java,Analyst,NS,55
+Java,Senior,US,110
+Java,Senior,NS,75
+Java,Senior Lead,US,134
+Java,Senior Lead,NS,90
+Java,Principal,US,160
+Java,Principal,NS,100
+Java,Sr Principal,US,190
+Java,Sr Principal,NS,110
+Java,Director,US,220
+Java,Director,NS,125
+Mobile,Associate,US,75
+Mobile,Associate,NS,44
+Mobile,Analyst,US,95
+Mobile,Analyst,NS,55
+Mobile,Senior,US,120
+Mobile,Senior,NS,75
+Mobile,Senior Lead,US,150
+Mobile,Senior Lead,NS,90
+Mobile,Principal,US,175
+Mobile,Principal,NS,100
+Mobile,Sr Principal,US,195
+Mobile,Sr Principal,NS,110
+Mobile,Director,US,225
+Mobile,Director,NS,125
+.NET,Associate,US,70
+.NET,Associate,NS,40
+.NET,Analyst,US,87
+.NET,Analyst,NS,55
+.NET,Senior,US,110
+.NET,Senior,NS,70
+.NET,Senior Lead,US,134
+.NET,Senior Lead,NS,85
+.NET,Principal,US,160
+.NET,Principal,NS,95
+.NET,Sr Principal,US,190
+.NET,Sr Principal,NS,105
+.NET,Director,US,220
+.NET,Director,NS,115
+Web,Associate,US,70
+Web,Associate,NS,35
+Web,Analyst,US,87
+Web,Analyst,NS,45
+Web,Senior,US,110
+Web,Senior,NS,65
+Web,Senior Lead,US,134
+Web,Senior Lead,NS,83
+Web,Principal,US,160
+Web,Principal,NS,92
+Web,Sr Principal,US,190
+Web,Sr Principal,NS,100
+Web,Director,US,220
+Web,Director,NS,110
+Design,Associate,US,70
+Design,Associate,NS,40
+Design,Analyst,US,87
+Design,Analyst,NS,55
+Design,Senior,US,110
+Design,Senior,NS,70
+Design,Senior Lead,US,134
+Design,Senior Lead,NS,85
+Design,Principal,US,160
+Design,Principal,NS,95
+Design,Sr Principal,US,190
+Design,Sr Principal,NS,105
+Design,Director,US,220
+Design,Director,NS,115
+Marketing Analytics,Associate,US,75
+Marketing Analytics,Associate,NS,44
+Marketing Analytics,Analyst,US,95
+Marketing Analytics,Analyst,NS,55
+Marketing Analytics,Senior,US,120
+Marketing Analytics,Senior,NS,75
+Marketing Analytics,Senior Lead,US,150
+Marketing Analytics,Senior Lead,NS,90
+Marketing Analytics,Principal,US,175
+Marketing Analytics,Principal,NS,100
+Marketing Analytics,Sr Principal,US,195
+Marketing Analytics,Sr Principal,NS,110
+Marketing Analytics,Director,US,225
+Marketing Analytics,Director,NS,125
+Product Strategy,Associate,US,75
+Product Strategy,Associate,NS,44
+Product Strategy,Analyst,US,95
+Product Strategy,Analyst,NS,55
+Product Strategy,Senior,US,120
+Product Strategy,Senior,NS,75
+Product Strategy,Senior Lead,US,150
+Product Strategy,Senior Lead,NS,90
+Product Strategy,Principal,US,175
+Product Strategy,Principal,NS,100
+Product Strategy,Sr Principal,US,195
+Product Strategy,Sr Principal,NS,110
+Product Strategy,Director,US,225
+Product Strategy,Director,NS,125
+Solutions Architect,Senior Lead,US,200
+Solutions Architect,Senior Lead,NS,140
+Solutions Architect,Principal,US,225
+Solutions Architect,Principal,NS,175
+Solutions Architect,Sr Principal,US,250
+Solutions Architect,Sr Principal,NS,205
+Solutions Architect,Director,US,275
+Solutions Architect,Director,NS,225
+Solutions Consultant,Senior Lead,US,200
+Solutions Consultant,Senior Lead,NS,140
+Solutions Consultant,Principal,US,225
+Solutions Consultant,Principal,NS,175
+Solutions Consultant,Sr Principal,US,250
+Solutions Consultant,Sr Principal,NS,205
+Solutions Consultant,Director,US,275
+Solutions Consultant,Director,NS,225

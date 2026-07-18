@@ -380,6 +380,23 @@ def rebuild_estimate(estimate_id: str, req: CreateEstimateRequestAuthed, user: U
     return _to_response(stored.estimate_id, stored.version, stored.graph, references)
 
 
+class TagsRequest(BaseModel):
+    tags: list[str]
+
+
+@app.post("/api/estimates/{estimate_id}/tags", response_model=EstimateResponse)
+def set_tags(estimate_id: str, req: TagsRequest, user: User = Depends(get_current_user)) -> EstimateResponse:
+    """Set estimate metadata tags (auto-saved in place, no new version)."""
+    _access_or_403(user, estimate_id, "edit")
+    stored = service.get_estimate(estimate_id)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="estimate not found")
+    graph = stored.graph.model_copy(deep=True)
+    graph.tags = [t.strip() for t in req.tags if t.strip()][:20]
+    saved = service.repo.overwrite_latest(estimate_id, graph)
+    return _to_response(saved.estimate_id, saved.version, saved.graph)
+
+
 @app.post("/api/estimates/{estimate_id}/clone", response_model=EstimateResponse)
 def clone_estimate(estimate_id: str, user: User = Depends(get_current_user)) -> EstimateResponse:
     """Clone an estimate to test other assumptions (new estimate, never active)."""

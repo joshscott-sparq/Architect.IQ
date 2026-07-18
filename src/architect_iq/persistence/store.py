@@ -46,6 +46,7 @@ class EstimateSummary:
     updated_at: str
     owner_id: str | None = None
     opportunity_id: str | None = None
+    tags: list[str] | None = None
 
 
 class EstimateRepository(ABC):
@@ -256,4 +257,5 @@ class SQLiteEstimateRepository(EstimateRepository):
             updated_at=updated_at,
             owner_id=owner_id,
             opportunity_id=opportunity_id,
+            tags=list(g.tags),
         )

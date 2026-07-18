@@ -41,7 +41,7 @@ export function Login() {
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-3 justify-center mb-6">
           <img src="/brand/Sparq-Logo-White.svg" alt="Sparq" className="h-7" />
-          <div className="text-canvas text-lg font-semibold">
+          <div className="text-white text-lg font-semibold">
             Architect<span className="text-brand-orange">.IQ</span>
           </div>
         </div>
@@ -60,8 +60,8 @@ export function Login() {
           </button>
           <p className="text-muted text-[11px] mt-3">JumpCloud SSO coming via the same OIDC path.</p>
         </form>
-        <div className="text-canvas/70 text-[12px] mt-4 bg-black/20 rounded-lg p-3">
-          <div className="font-semibold text-canvas mb-1">Sample logins</div>
+        <div className="text-white/70 text-[12px] mt-4 bg-black/20 rounded-lg p-3">
+          <div className="font-semibold text-white mb-1">Sample logins</div>
           admin@architect.iq / admin123 · user@architect.iq / user123 · client@architect.iq / client123
         </div>
       </div>

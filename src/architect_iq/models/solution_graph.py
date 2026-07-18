@@ -63,6 +63,7 @@ class SolutionGraph(BaseModel):
     # Provenance
     data_versions: DataVersions | None = None
     assumptions: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list, description="User metadata tags for filtering/organizing.")
 
     # --- Projection helpers ---
 

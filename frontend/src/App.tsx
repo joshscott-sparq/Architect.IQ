@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { useAuth } from "./auth";
+import { useTheme } from "./theme";
 import type { EstimateResponse } from "./types";
 import { NewEstimate } from "./components/NewEstimate";
 import { EstimateView } from "./components/EstimateView";
@@ -11,45 +12,36 @@ import { OpportunityView } from "./components/OpportunityView";
 import { OpportunitiesList } from "./components/OpportunitiesList";
 import { Login } from "./components/Login";
 import { SharedPage } from "./components/SharedPage";
+import { Avatar } from "./components/Avatar";
 
 type View = "new" | "list" | "view" | "rates" | "admin" | "opps" | "opp";
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 const SHARED_MATCH = location.pathname.match(/^\/shared\/([A-Za-z0-9]+)/);
 
-function NavButton({ active, onClick, children }: { active?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick}
-      className={"px-3 py-2 rounded-lg border bg-transparent transition-colors " +
-        (active ? "text-white border-brand-orange" : "text-stone-300 border-transparent hover:text-white")}>
-      {children}
-    </button>
-  );
-}
-
 export default function App() {
   const { user, loading, login, logout } = useAuth();
+  const { theme, toggle } = useTheme();
   const [view, setView] = useState<View>("list");
   const [current, setCurrent] = useState<EstimateResponse | null>(null);
   const [access, setAccess] = useState<{ can_edit: boolean; can_comment: boolean }>({ can_edit: true, can_comment: true });
   const [oppId, setOppId] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState(false);
   const [listKey, setListKey] = useState(0);
+  const [menu, setMenu] = useState<null | "nav" | "user">(null);
   const demoTried = useRef(false);
 
-  // Demo mode: auto-login as admin and seed sample data (users, accounts,
-  // opportunities, estimates, shares, comments, scenarios).
   useEffect(() => {
     if (!DEMO_MODE || demoTried.current || loading || user) return;
     demoTried.current = true;
-    login("admin@architect.iq", "admin123")
-      .then(() => api.seedDemo())
-      .then(() => setListKey((k) => k + 1))
-      .catch(() => {});
+    login("admin@architect.iq", "admin123").then(() => api.seedDemo()).then(() => setListKey((k) => k + 1)).catch(() => {});
   }, [loading, user]);
 
-  // Public, no-login share route takes precedence (checked after hooks run).
   if (SHARED_MATCH) return <SharedPage token={SHARED_MATCH[1]} />;
+  if (loading) return <div className="p-10 text-muted">Loading…</div>;
+  if (!user) return <Login />;
+
+  const isAdmin = user.role === "admin";
+  const isClient = user.role === "client";
 
   async function open(id: string) {
     const [est, acc] = await Promise.all([api.getEstimate(id), api.access(id).catch(() => ({ can_edit: false, can_comment: false }))]);
@@ -58,34 +50,72 @@ export default function App() {
     setView("view");
   }
 
-  if (loading) return <div className="p-10 text-muted">Loading…</div>;
-  if (!user) return <Login />;
-
-  const isAdmin = user.role === "admin";
-  const isClient = user.role === "client";
+  const nav: { key: View; label: string; show: boolean }[] = [
+    { key: "new", label: "New estimate", show: !isClient },
+    { key: "list", label: "Estimates", show: true },
+    { key: "opps", label: "Opportunities", show: true },
+    { key: "rates", label: "Rates", show: !isClient },
+    { key: "admin", label: "Admin", show: isAdmin },
+  ];
+  const go = (v: View) => { setView(v); setMenu(null); };
 
   return (
     <>
-      <header className="flex items-center gap-4 px-7 py-3.5 bg-brand-dark text-white">
+      <header className="flex items-center gap-4 px-5 sm:px-7 py-3 bg-brand-dark text-white relative">
         <div className="flex items-center gap-3.5">
           <img src="/brand/Sparq-Logo-White.svg" alt="Sparq" className="h-6 w-auto block" />
           <div className="w-px h-5 bg-stone-600" />
-          <div className="font-semibold text-base tracking-tight text-canvas">Architect<span className="text-brand-orange">.IQ</span></div>
+          <button className="font-semibold text-base tracking-tight text-white" onClick={() => go("list")}>
+            Architect<span className="text-brand-orange">.IQ</span>
+          </button>
         </div>
-        <nav className="flex gap-1.5 ml-auto items-center">
-          {!isClient && <NavButton active={view === "new"} onClick={() => setView("new")}>New estimate</NavButton>}
-          <NavButton active={view === "list"} onClick={() => setView("list")}>Estimates</NavButton>
-          <NavButton active={view === "opps" || view === "opp"} onClick={() => setView("opps")}>Opportunities</NavButton>
-          {!isClient && <NavButton active={view === "rates"} onClick={() => setView("rates")}>Rates</NavButton>}
-          {isAdmin && <NavButton active={view === "admin"} onClick={() => setView("admin")}>Admin</NavButton>}
-          {current && <NavButton active={view === "view"} onClick={() => setView("view")}>Current</NavButton>}
-          <span className="ml-2 text-[12px] text-stone-300">{user.name} · <span className="text-brand-aurora">{user.role}</span></span>
-          <button className="px-2.5 py-1 rounded-md text-xs border border-stone-600 text-stone-300 hover:text-white ml-1" onClick={logout}>Sign out</button>
-        </nav>
+
+        <div className="ml-auto flex items-center gap-2">
+          {DEMO_MODE && <span className="hidden sm:inline px-2.5 py-1 rounded-md text-xs font-semibold text-brand-deepest bg-brand-aurora">Demo</span>}
+
+          {/* Hamburger nav */}
+          <div className="relative">
+            <button aria-label="Menu" className="px-2.5 py-2 rounded-lg text-stone-300 hover:text-white border border-transparent hover:border-stone-600" onClick={() => setMenu(menu === "nav" ? null : "nav")}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+            </button>
+            {menu === "nav" && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
+                <div className="absolute right-0 mt-1 z-20 bg-surface text-ink border border-line rounded-xl py-1 shadow-xl min-w-[180px]">
+                  {nav.filter((n) => n.show).map((n) => (
+                    <button key={n.key} className={"block w-full text-left px-4 py-2 text-[14px] hover:bg-canvas " + (view === n.key ? "text-brand-orange font-semibold" : "")} onClick={() => go(n.key)}>{n.label}</button>
+                  ))}
+                  {current && <button className="block w-full text-left px-4 py-2 text-[14px] hover:bg-canvas" onClick={() => go("view")}>Current estimate</button>}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Avatar dropdown */}
+          <div className="relative">
+            <button onClick={() => setMenu(menu === "user" ? null : "user")} className="rounded-full ring-2 ring-transparent hover:ring-stone-600">
+              <Avatar name={user.name} size={32} />
+            </button>
+            {menu === "user" && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
+                <div className="absolute right-0 mt-1 z-20 bg-surface text-ink border border-line rounded-xl py-1 shadow-xl min-w-[240px]">
+                  <div className="px-4 py-2 border-b border-line">
+                    <div className="text-[12px] text-muted">Signed in as · {user.role}</div>
+                    <div className="text-[13px] font-medium truncate">{user.email}</div>
+                  </div>
+                  <button className="flex items-center gap-2 w-full text-left px-4 py-2 text-[14px] hover:bg-canvas" onClick={() => { toggle(); setMenu(null); }}>
+                    {theme === "dark" ? "☀︎ Light mode" : "☾ Dark mode"}
+                  </button>
+                  <button className="flex items-center gap-2 w-full text-left px-4 py-2 text-[14px] hover:bg-canvas" onClick={logout}>⇥ Sign out</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </header>
 
-      <main className="max-w-[1180px] mx-auto px-7 pt-6 pb-16">
-        {seeding && <div className="text-muted text-sm mb-3">Loading demo data…</div>}
+      <main className="max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 pb-16">
         {view === "new" && !isClient && <NewEstimate onOpen={open} />}
         {view === "list" && <EstimatesList key={listKey} onOpen={open} />}
         {view === "opps" && <OpportunitiesList onOpen={(id) => { setOppId(id); setView("opp"); }} />}

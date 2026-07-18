@@ -71,6 +71,7 @@ export interface DeferralSuggestion {
 
 export interface Graph {
   project_name: string;
+  tags?: string[];
   scenarios?: ScenarioResult[];
   requirements: { id: string; text: string }[];
   capabilities: { id: string; name: string }[];
@@ -115,6 +116,7 @@ export interface EstimateSummary {
   cost_p50?: number | null;
   effort_p50?: number | null;
   updated_at: string;
+  tags?: string[] | null;
 }
 
 export interface Pattern {

@@ -39,8 +39,16 @@ every artifact is a projection of one object. See
 - Optimization advisor suggests cheaper/faster team models (with real numbers)
   and features to defer to a later release, grounded in historical estimates.
 
+**UI**
+- Light and dark mode (toggle in the avatar menu; follows OS by default).
+- Orange-initial user avatar; top-bar hamburger nav + account menu.
+- Google-Drive-style **Share** at the top of an estimate; collapsible sections;
+  comments at the bottom; editable metadata **tags**.
+
 **Rate cards & deal-shaping**
 - Multiple saved rate cards (one active, one default); upload `.csv/.xlsx/.yaml`.
+  A digested Sparq rate card is in [`examples/`](examples/) (`sparq-current-rates.csv`
+  is loadable; `.md` is the readable hourly table).
 - Interactive sliders (AI boost, team size) recompute live; re-cost under any card.
 - Client-safe orals mode hides pricing.
 

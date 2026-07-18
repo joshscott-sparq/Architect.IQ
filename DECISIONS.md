@@ -56,6 +56,29 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D20. UI: light/dark, avatar, top-bar menus, share-at-top, collapsible, tags
+**Call:**
+- **Theme:** light/dark via Tailwind class strategy; neutral tokens
+  (canvas/surface/field/line/ink/muted) flip under `.dark`, brand accents don't.
+  Toggle in the avatar menu, persisted, defaults to OS preference. Always-dark
+  surfaces (top bar, login) use fixed `text-white`, not flipping tokens.
+- **Avatar:** orange circle with the user's white capitalized initial.
+- **Top bar:** hamburger menu (role-filtered nav) + avatar dropdown ("Signed in
+  as", light/dark toggle, sign out) at top-right.
+- **Sharing at top:** a "Share" button in the estimate header opens a
+  Google-Drive-style popover (share by email/name, permission, public link);
+  comments moved to the bottom.
+- **Collapsible sections:** estimate sections expand/collapse on header click.
+- **Tags:** editable metadata tag bar at the top of an estimate; tags persist on
+  the graph and surface in list summaries.
+- **Rate-card deliverable:** digested the CURRENT RATES sheet into
+  `examples/sparq-current-rates.{md,csv}` (+ `-hourly.csv`). The image values are
+  hourly bill rates; the loadable CSV uses day_rate = hourly x 8 (engine treats
+  the rate column as per working day).
+**Why:** Owner asked for Google-Drive-style sharing at top + a hamburger menu,
+estimate tagging, expandable sections, comments at bottom, an orange-initial
+avatar, light/dark mode, and a CSV/MD rate card from the rates image.
+
 ## D19. Live estimation: auto-build, auto-save, clone
 **Call:** The estimate editor has no "Generate" button. It debounces input
 changes (~900ms) and builds/updates the estimate automatically, saving in place
