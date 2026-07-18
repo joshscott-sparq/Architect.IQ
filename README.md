@@ -150,8 +150,26 @@ at runtime in the **Rates** tab. Schema: [`data/SCHEMA.md`](src/architect_iq/dat
 
 ## Quick start
 
-The app is two processes — a FastAPI backend and a Vite frontend — run at the same
-time in **two terminals**. Start the backend first, then the frontend.
+The app is two processes — a FastAPI backend and a Vite frontend. `./dev.sh`
+starts both with one command (installs dependencies on first run if missing):
+
+```bash
+./dev.sh          # normal app
+./dev.sh demo     # demo mode: auto-logs in as admin with sample data (easiest first run)
+```
+
+Open the URL Vite prints (default http://localhost:5173). Ctrl+C stops both.
+
+**First demo run seeds sample data by calling the backend** — near-instant with
+no `ANTHROPIC_API_KEY` set, or up to ~1-2 minutes if it's set (each of the 5
+sample estimates calls the real LLM). Give it time rather than reloading or
+opening a second tab mid-seed, which can race and create duplicate estimates.
+
+If Vite reports port 5173 in use, it serves on the next port (5174, …); open
+the URL it actually prints rather than assuming 5173.
+
+<details>
+<summary>Running the two processes manually (equivalent to <code>dev.sh</code>)</summary>
 
 Terminal 1 (backend, port 8000):
 
@@ -161,41 +179,23 @@ uv pip install -e ".[dev]"
 .venv/bin/python -m uvicorn architect_iq.api.app:app --port 8000 --reload
 ```
 
-Terminal 2 (frontend, proxies `/api` → `:8000`):
+Terminal 2 (frontend, proxies `/api` → `:8000`), started **after** the backend is up:
 
 ```bash
 cd frontend
 npm install
-npm run demo     # demo mode: auto-logs in as admin with sample data (easiest first run)
+npm run demo     # demo mode
 # npm run dev    # normal app (log in with a sample account below)
 ```
 
-Open the URL Vite prints (default http://localhost:5173).
-
-**Demo mode needs the backend.** `npm run demo` auto-logs in and seeds sample data
-by calling the backend, so Terminal 1 must be running first. If it isn't, the
-sign-in screen shows "Couldn't reach the backend on :8000" — start the backend and
-reload. If Vite reports port 5173 in use, it serves on the next port (5174, …);
-open the URL it actually prints rather than assuming 5173.
+Demo mode needs the backend running first — if it isn't, the sign-in screen
+shows "Couldn't reach the backend on :8000."
+</details>
 
 ## Local development
 
-Backend — Python 3.12 (this repo uses [`uv`](https://docs.astral.sh/uv/)):
-
-```bash
-uv venv --python 3.12
-uv pip install -e ".[dev]"
-.venv/bin/python -m uvicorn architect_iq.api.app:app --port 8000 --reload
-```
-
-Frontend — proxies `/api` to `:8000`:
-
-```bash
-cd frontend
-npm install
-npm run dev      # normal app
-npm run demo     # demo mode (auto-loads sample data)
-```
+See **Quick start** above to run the app (`./dev.sh`, or the two processes
+manually). Python is 3.12 via [`uv`](https://docs.astral.sh/uv/).
 
 Tests:
 
