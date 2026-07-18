@@ -18,6 +18,7 @@ from .core.recompute import RecomputeOverrides, recompute
 from .memory.priors import ActualOutcome
 from .models.org import Permission
 from .models.results import ClientContext
+from .models.team import RateRow
 from .service import EstimateService
 
 
@@ -196,6 +197,24 @@ def seed_demo(service: EstimateService) -> dict:
         directory.create_share_link(lead, "admin@architect.iq")
         directory.add_comment(lead, "Sample Client", "Can we see a nearshore staffing option for this?")
         directory.add_comment(lead, "Administrator", "Added an agentic + nearshore scenario below — ~60% cost reduction.")
+
+        # Metadata tags on the lead estimate.
+        lead_stored = service.get_estimate(lead)
+        if lead_stored:
+            tagged = lead_stored.graph.model_copy(deep=True)
+            tagged.tags = ["priority", "RAG", "active-deal"]
+            service.repo.overwrite_latest(lead, tagged)
+
+        # Clone the lead to show multiple estimates per opportunity / testing
+        # alternative assumptions (the clone is never the active/official one).
+        service.clone_estimate(lead, owner_id=owner_id)
+
+        # A second saved rate card (default stays active) to show card management.
+        rows, _ = service.active_rates()
+        if not any(c.name == "FY26 Nearshore-leaning (demo)" for c in service.list_rate_cards()):
+            discounted = [RateRow(discipline=r.discipline, tier=r.tier, location=r.location,
+                                  day_rate=round(r.day_rate * 0.85)) for r in rows]
+            service.rate_cards.create("FY26 Nearshore-leaning (demo)", discounted, activate=False)
 
     return {"created": created, "created_count": len(created), "total": len(service.list_estimates())}
 
