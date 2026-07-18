@@ -54,7 +54,11 @@ def compute_scenario(
     ai_boost = float(dm.get("ai_boost", 0.0))
     effort_mult = float(dm.get("effort_multiplier", 1.0))
 
-    scaled = [_scaled(wi.points, effort_mult) for wi in graph.work_items]
+    from .factors import complexity_impact, risk_sigma
+
+    parents = {wi.parent_id for wi in graph.work_items if wi.parent_id}
+    leaves = [wi for wi in graph.work_items if wi.id not in parents]
+    scaled = [_scaled(wi.points, effort_mult) for wi in leaves]
     bottom_up = sum(montecarlo.deterministic_pert(tp, variables) for tp in scaled)
 
     roles = graph.team_plan.roles
@@ -63,7 +67,8 @@ def compute_scenario(
     engineers = float(scenario.engineers) if scenario.engineers else base_eng
     factor = engineers / base_eng if base_eng else 1.0
 
-    velocity = team_velocity(variables.avg_story_pts, engineers, ai_boost)
+    cx_impact = complexity_impact(graph.complexity_factors, variables.avg_story_pts)
+    velocity = team_velocity(variables.avg_story_pts, engineers, ai_boost, cx_impact)
     duration_sprints = bottom_up / velocity if velocity else 0.0
     duration_months = duration_sprints * variables.weeks_in_sprint / _WEEKS_PER_MONTH
 
@@ -74,7 +79,8 @@ def compute_scenario(
         monthly += rate * alloc * variables.working_month_days
     total_cost = round(monthly * duration_months, 2)
 
-    samples, effort_pct = montecarlo.simulate_points(scaled, iterations)
+    sigma = risk_sigma(graph.complexity_factors, graph.reconciliation.delta_pct if graph.reconciliation else 0.0)
+    samples, effort_pct = montecarlo.simulate_points(scaled, iterations, systemic_sigma=sigma)
     duration_samples = samples / velocity if velocity else np.zeros_like(samples)
     cost_per_point = (total_cost / bottom_up) if bottom_up else 0.0
     cost_samples = samples * cost_per_point

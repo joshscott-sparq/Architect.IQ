@@ -48,11 +48,15 @@ def simulate_points(
     items: list[ThreePoint],
     iterations: int = 10_000,
     seed: int = 12345,
+    systemic_sigma: float = 0.0,
 ) -> tuple[np.ndarray, Percentiles]:
     """Sample summed effort points across all items.
 
-    Returns (per-iteration totals, percentiles). Seed is fixed for reproducible
-    estimates (edits should move numbers only when inputs change).
+    Work items are sampled from their PERT-beta distributions (independent
+    scope/estimation noise). `systemic_sigma` > 0 adds a *correlated* per-iteration
+    multiplier (a common-cause risk factor, lognormal with mean 1) applied to the
+    whole project, so summing items does not artificially collapse the range —
+    real engagements share systemic risk. Returns (per-iteration totals, percentiles).
     """
     rng = np.random.default_rng(seed)
     totals = np.zeros(iterations, dtype=float)
@@ -60,6 +64,10 @@ def simulate_points(
         totals += _sample_pert_beta(
             rng, tp.effective_optimistic, tp.realistic, tp.effective_pessimistic, iterations
         )
+    if systemic_sigma > 0:
+        # Lognormal with E[factor] = 1 so the median is unbiased; tails widen.
+        factor = rng.lognormal(mean=-(systemic_sigma ** 2) / 2, sigma=systemic_sigma, size=iterations)
+        totals *= factor
     return totals, _percentiles(totals)
 
 

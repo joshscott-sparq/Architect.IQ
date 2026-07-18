@@ -37,6 +37,7 @@ from ..models.team import Location, RateRow, Role, TeamPlan
 from ..models.variables import Variables
 from ..models.work_item import CureAssessment, ThreePoint, WorkItem, WorkLevel
 from . import montecarlo
+from .factors import complexity_impact, derive_factors, risk_sigma
 from .matcher import PatternMatch, score_patterns
 from .velocity import team_velocity
 
@@ -87,16 +88,60 @@ def extract_requirements(prd_text: str, max_items: int = 60) -> list[Requirement
     return requirements
 
 
-def _three_point_for_size(size: str, feature_points: dict[str, dict]) -> ThreePoint:
-    """Feature-scale 3-point estimate: realistic at `size`, O/P one size each way."""
-    idx = SIZE_ORDER.index(size)
-    opt_size = SIZE_ORDER[max(0, idx - 1)]
-    pes_size = SIZE_ORDER[min(len(SIZE_ORDER) - 1, idx + 1)]
-    return ThreePoint(
-        realistic=feature_points[size]["feature"],
-        optimistic=feature_points[opt_size]["feature"],
-        pessimistic=feature_points[pes_size]["feature"],
-    )
+def _three_point(realistic: float, confidence: float) -> ThreePoint:
+    """Confidence-driven 3-point estimate (§3.2).
+
+    Low confidence widens the optimistic/pessimistic bands; the pessimistic side
+    widens faster (estimates skew optimistic). At full confidence the bands are
+    tight (~0.85x / 1.25x); at zero confidence they are wide (~0.5x / 2.1x).
+    """
+    u = 1.0 - max(0.0, min(1.0, confidence))
+    optimistic = realistic * (1.0 - (0.15 + 0.35 * u))
+    pessimistic = realistic * (1.0 + (0.25 + 0.85 * u))
+    return ThreePoint(realistic=realistic, optimistic=round(optimistic, 2), pessimistic=round(pessimistic, 2))
+
+
+def _leaf_work_items(work_items: list[WorkItem]) -> list[WorkItem]:
+    """Work items with no children — the ones effort rolls up from."""
+    parents = {wi.parent_id for wi in work_items if wi.parent_id}
+    return [wi for wi in work_items if wi.id not in parents]
+
+
+def _decompose(work_items: list[WorkItem], edges: list[Edge], variables: Variables,
+               threshold: float = 20.0) -> None:
+    """Split large feature work items into stories (decompose gate, §3.3).
+
+    Any feature whose realistic size is at/above the L feature-scale threshold is
+    broken into evenly-sized story children (parent kept for the Gantt hierarchy).
+    Effort then rolls up from the finer stories. Mutates work_items/edges in place.
+    """
+    import math
+
+    comp_by_wi = {e.target_id: e.source_id for e in edges if e.kind is EdgeKind.IMPLEMENTED_BY}
+    new_items: list[WorkItem] = []
+    new_edges: list[Edge] = []
+    for wi in list(work_items):
+        if wi.level is not WorkLevel.FEATURE or wi.points.realistic < threshold:
+            continue
+        k = max(2, math.ceil(wi.points.realistic / 12.5))  # ~ one feature-M per story
+        share = 1.0 / k
+        for s in range(1, k + 1):
+            story = WorkItem(
+                id=f"{wi.id}-s{s}", level=WorkLevel.STORY, epic=wi.epic, feature=wi.feature,
+                story=f"{wi.feature} — part {s}", parent_id=wi.id,
+                points=ThreePoint(
+                    realistic=round(wi.points.realistic * share, 2),
+                    optimistic=round(wi.points.effective_optimistic * share, 2),
+                    pessimistic=round(wi.points.effective_pessimistic * share, 2),
+                ),
+                cure=wi.cure, discipline=wi.discipline, extraction_confidence=wi.extraction_confidence,
+            )
+            new_items.append(story)
+            comp = comp_by_wi.get(wi.id)
+            if comp:
+                new_edges.append(Edge(source_id=comp, target_id=story.id, kind=EdgeKind.IMPLEMENTED_BY, confidence=0.5))
+    work_items.extend(new_items)
+    edges.extend(new_edges)
 
 
 def _driver_quantities(components: list[Component], edges: list[Edge], context: ClientContext) -> dict[str, float]:
@@ -143,19 +188,22 @@ def _instantiate_pattern(pattern: Pattern, feature_points: dict[str, dict]) -> t
             )
         )
 
-        # One feature-level work item per component, sized by type.
+        # One feature-level work item per component, sized by type with
+        # confidence-driven optimistic/pessimistic bands (§3.2).
         size = _TYPE_SIZE.get(spec.component_type, "M")
+        confidence = 0.5
+        realistic = feature_points[size]["feature"]
         work_items.append(
             WorkItem(
                 id=f"wi-{i}",
                 level=WorkLevel.FEATURE,
                 epic=pattern.name,
                 feature=spec.name,
-                points=_three_point_for_size(size, feature_points),
+                points=_three_point(realistic, confidence),
                 cure=CureAssessment(
                     complexity=3, unknowns=3, risks=2, effort=3,
                     rationale=f"Sizing: {spec.component_type.value} default {size}.",
-                    confidence=0.4,
+                    confidence=confidence,
                 ),
                 practice=None,
                 discipline=spec.discipline,
@@ -397,8 +445,21 @@ def build_estimate(
     edges += cap_edges
     assumptions.append(f"Capabilities derived via {cap_mode}.")
 
-    # --- Bottom-up (work-item rollup, deterministic PERT in feature-scale points) ---
-    bottom_up = sum(montecarlo.deterministic_pert(wi.points, variables) for wi in work_items)
+    # --- Decompose large features into stories for finer bottom-up (§3.3) ---
+    _decompose(work_items, edges, variables)
+    leaves = _leaf_work_items(work_items)
+
+    # --- Complexity/risk factors -> velocity impact (§2.3-2.4) ---
+    factors = derive_factors(components, edges, context, pattern, prd_text)
+    cx_impact = complexity_impact(factors, variables.avg_story_pts)
+    if factors:
+        assumptions.append(
+            f"Applied {len(factors)} complexity/risk factor(s) "
+            f"({', '.join(f.family for f in factors)}); velocity impact {cx_impact:+.2f} pts/eng-sprint."
+        )
+
+    # --- Bottom-up (leaf rollup, deterministic PERT) ---
+    bottom_up = sum(montecarlo.deterministic_pert(wi.points, variables) for wi in leaves)
 
     # --- Top-down (pattern parametric; tuned prior from memory when provided) ---
     parametric = parametric_override or pattern.parametric_cost
@@ -409,29 +470,42 @@ def build_estimate(
         )
     drivers = _driver_quantities(components, edges, context)
     top_down = parametric.estimate_points(drivers)
+
+    # Confidence-weighted blend of top-down and bottom-up. Bottom-up is weighted by
+    # the breakdown's average confidence; the rest goes to the pattern's top-down.
+    avg_conf = sum(wi.cure.confidence for wi in leaves) / len(leaves) if leaves else 0.5
+    w_bottom = 0.4 + 0.4 * avg_conf  # 0.4-0.8
+    blended = w_bottom * bottom_up + (1 - w_bottom) * top_down
     reconciliation = ReconciliationResult(
         top_down_points=round(top_down, 2),
         bottom_up_points=round(bottom_up, 2),
+        blended_points=round(blended, 2),
     )
     if reconciliation.is_divergent():
         assumptions.append(
             f"Top-down ({top_down:.0f}) and bottom-up ({bottom_up:.0f}) diverge "
-            f"{reconciliation.delta_pct * 100:.0f}%; flagged for the critique pass."
+            f"{reconciliation.delta_pct * 100:.0f}%; blended to {blended:.0f} and widened the range."
         )
 
-    # --- Team + cost ---
+    # --- Team + cost (velocity carries the complexity impact) ---
     team = _build_team(components, rates, context, variables)
     engineers = max(1, sum(1 for r in team.roles if r.discipline != "Project & Program Management"))
-    velocity = team_velocity(variables.avg_story_pts, engineers)
-    duration_sprints = bottom_up / velocity if velocity else 0.0
+    velocity = team_velocity(variables.avg_story_pts, engineers, complexity_impact=cx_impact)
+    duration_sprints = blended / velocity if velocity else 0.0
     duration_months = duration_sprints * variables.weeks_in_sprint / 4.345
     total_cost = round((team.monthly_cost or 0.0) * duration_months, 2)
     team.total_cost = total_cost
 
-    # --- Monte Carlo (effort, duration, cost) ---
-    point_samples, effort_pct = montecarlo.simulate_points([wi.points for wi in work_items], iterations)
+    # --- Monte Carlo with correlated systemic risk (§4.1) ---
+    # Center the uncertainty distribution on the blended working number (the
+    # bottom-up rollup provides the *shape*; the blend provides the *level*).
+    sigma = risk_sigma(factors, reconciliation.delta_pct)
+    point_samples, _ = montecarlo.simulate_points([wi.points for wi in leaves], iterations, systemic_sigma=sigma)
+    if bottom_up:
+        point_samples = point_samples * (blended / bottom_up)
+    effort_pct = montecarlo.derive_percentiles(point_samples)
     duration_samples = point_samples / velocity if velocity else np.zeros_like(point_samples)
-    cost_per_point = (total_cost / bottom_up) if bottom_up else 0.0
+    cost_per_point = (total_cost / blended) if blended else 0.0
     cost_samples = point_samples * cost_per_point
     monte_carlo = MonteCarloResult(
         iterations=iterations,
@@ -441,7 +515,7 @@ def build_estimate(
     )
 
     deterministic = DeterministicResult(
-        total_points=round(bottom_up, 2),
+        total_points=round(blended, 2),
         total_cost=total_cost,
         per_phase_velocity={"single-phase": velocity},
     )
@@ -460,6 +534,7 @@ def build_estimate(
         deterministic=deterministic,
         monte_carlo=monte_carlo,
         reconciliation=reconciliation,
+        complexity_factors=factors,
         data_versions=DataVersions(
             tshirt_scale=tshirt_v,
             variables=vars_v,

@@ -58,6 +58,8 @@ class ReconciliationResult(BaseModel):
 
     top_down_points: float = Field(description="Pattern parametric estimate.")
     bottom_up_points: float = Field(description="Work-item rollup.")
+    blended_points: float | None = Field(
+        default=None, description="Confidence-weighted blend of top-down and bottom-up.")
     per_capability: dict[str, dict[str, float]] = Field(
         default_factory=dict,
         description="capability_id -> {top_down, bottom_up}.",

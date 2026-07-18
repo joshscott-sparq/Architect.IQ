@@ -18,6 +18,13 @@ export interface MonteCarlo {
 export interface Reconciliation {
   top_down_points: number;
   bottom_up_points: number;
+  blended_points?: number | null;
+}
+
+export interface LinkedFactor {
+  family: string;
+  severity: string;
+  impact: number;
 }
 
 export interface Role {
@@ -72,6 +79,7 @@ export interface DeferralSuggestion {
 export interface Graph {
   project_name: string;
   tags?: string[];
+  complexity_factors?: LinkedFactor[];
   scenarios?: ScenarioResult[];
   requirements: { id: string; text: string }[];
   capabilities: { id: string; name: string }[];

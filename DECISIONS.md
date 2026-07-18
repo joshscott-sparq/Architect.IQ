@@ -56,6 +56,28 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D21. Estimation methodology upgrade
+**Call:** Four changes make the estimate responsive and its ranges defensible:
+1. **Complexity/risk factors now move the number** (`core/factors.py`). Factors
+   are derived from inputs (integration count, compliance posture, tech
+   familiarity, legacy signals, the matched pattern's risk families), mapped to
+   library impacts (§2.4), summed into a ComplexityImpact that reduces per-engineer
+   velocity (§2.3), floored at -70% of AvgStoryPts. Stored on the graph and shown.
+2. **Correlated Monte Carlo.** A per-iteration lognormal systemic factor (mean 1)
+   multiplies the whole project so summing items no longer collapses the range;
+   sigma grows with factor count/severity and top-down/bottom-up divergence.
+3. **Confidence-driven spreads** (`_three_point`). Lower sizing confidence widens
+   the optimistic/pessimistic band (pessimistic faster).
+4. **Blend + decompose.** The reconciliation produces a confidence-weighted blend
+   of top-down and bottom-up (the working number); divergence widens the range.
+   Large features decompose into story children for a finer bottom-up rollup.
+   The MC distribution is recentred on the blend (bottom-up gives the shape, the
+   blend gives the level) so effort/duration/cost stay coherent.
+Applied consistently in build, recompute, and scenarios.
+**Why:** Owner asked to improve the estimation methodology and selected all four
+improvements. The complexity library and pattern risk families were previously
+inert; ranges were unrealistically tight; confidence and divergence were unused.
+
 ## D20. UI: light/dark, avatar, top-bar menus, share-at-top, collapsible, tags
 **Call:**
 - **Theme:** light/dark via Tailwind class strategy; neutral tokens

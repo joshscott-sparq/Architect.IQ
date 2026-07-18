@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 
+from .complexity import LinkedFactor
 from .graph import Capability, Component, Edge, EdgeKind, Requirement
 from .phase import Phase
 from .results import (
@@ -56,6 +57,9 @@ class SolutionGraph(BaseModel):
     deterministic: DeterministicResult | None = None
     monte_carlo: MonteCarloResult | None = None
     reconciliation: ReconciliationResult | None = None
+
+    # Applied complexity/risk factors that reduce velocity (spec §2.3-2.4).
+    complexity_factors: list[LinkedFactor] = Field(default_factory=list)
 
     # Staffing/development-model scenarios (spec §5.5).
     scenarios: list[ScenarioResult] = Field(default_factory=list)

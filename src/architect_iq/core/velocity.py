@@ -18,9 +18,12 @@ def effective_engineers(engineers: float) -> float:
     return max(1.0, engineers) ** DIMINISHING_EXPONENT
 
 
-def team_velocity(avg_story_pts: float, engineers: float, ai_boost: float = 0.0) -> float:
-    """Story points per sprint for the team.
+def team_velocity(avg_story_pts: float, engineers: float, ai_boost: float = 0.0,
+                  complexity_impact: float = 0.0) -> float:
+    """Story points per sprint for the team (§2.3).
 
-    `(1 + ai_boost) * AvgStoryPts * engineers**DIMINISHING_EXPONENT` (§2.3).
+    `(1 + ai_boost) * (AvgStoryPts + ComplexityImpact) * engineers**exponent`.
+    ComplexityImpact (<= 0) erodes per-engineer velocity; a floor keeps it positive.
     """
-    return (1.0 + ai_boost) * avg_story_pts * effective_engineers(engineers)
+    per_engineer = max(1.0, avg_story_pts + complexity_impact)
+    return (1.0 + ai_boost) * per_engineer * effective_engineers(engineers)

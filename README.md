@@ -22,8 +22,15 @@ every artifact is a projection of one object. See
 - Architecture-first: PRD + client context matched to a reference pattern
   (RAG on Databricks, .NET modernization, agentic-on-MCP), instantiated into
   components, work items, effort, team, and cost.
-- Monte Carlo ranges (PERT-beta): P10/P50/P80/P90 for effort, duration, and cost.
-- Two-sided reconciliation: top-down parametric vs bottom-up rollup; divergence flagged.
+- **Risk-aware velocity**: complexity/risk factors (integrations, compliance,
+  tech familiarity, legacy, pattern risk families) are derived from context and
+  reduce velocity — so the estimate responds to risk, not just scope.
+- **Correlated Monte Carlo** (PERT-beta + a systemic risk factor) giving
+  defensible P10/P50/P80/P90 ranges for effort, duration, and cost; confidence
+  and top-down/bottom-up divergence widen the range.
+- **Blended reconciliation**: a confidence-weighted blend of the top-down
+  parametric and bottom-up rollup is the working number; large features decompose
+  into stories for a finer rollup.
 - Sub-linear team velocity (diminishing returns) so more engineers shorten the
   timeline without looking artificially cheaper.
 

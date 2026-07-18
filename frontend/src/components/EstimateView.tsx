@@ -120,7 +120,23 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                 <div className="flex-1 h-2 bg-line rounded overflow-hidden relative"><div className="absolute h-full bg-brand-green" style={{ width: `${bottomPct}%` }} /></div>
                 <span>Top-down <b>{pts(rec.top_down_points)}</b></span>
               </div>
-              <p className="text-muted text-xs mb-0 mt-2">Divergence is the diagnostic: a large gap flags a missing pattern driver or an incomplete breakdown.</p>
+              {rec.blended_points != null && (
+                <p className="text-[13px] mt-2 mb-0">Blended estimate (confidence-weighted): <b>{pts(rec.blended_points)}</b></p>
+              )}
+              <p className="text-muted text-xs mb-0 mt-1">Divergence widens the range; the blend is the working number.</p>
+            </Section>
+          )}
+
+          {(g.complexity_factors?.length ?? 0) > 0 && (
+            <Section title="Risk &amp; complexity">
+              <p className="text-muted text-[12px] mt-0 mb-2">Derived from context; each reduces velocity and widens the range.</p>
+              {g.complexity_factors!.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 text-[13px] py-1 border-b border-line last:border-0">
+                  <span className="flex-1">{f.family}</span>
+                  <span className="badge bg-brand-mint text-brand-sage">{f.severity}</span>
+                  <span className="text-brand-orange-deep font-semibold w-12 text-right">{f.impact.toFixed(2)}</span>
+                </div>
+              ))}
             </Section>
           )}
         </div>
