@@ -1,0 +1,96 @@
+# VariablesTable + Phases-tab constants.
+# Source: Project_Estimation_Tool_Template_v1.xlsx (spec §2.1, §2.3, §2.5).
+# Each entry documents its source. `default` and `range` capture the workbook's
+# override guidance where the stated verified value differs from the nominal
+# default (see DECISIONS.md D3, D4).
+version: "1.0.0"
+source_workbook: "Project_Estimation_Tool_Template_v1.xlsx"
+
+variables:
+  # --- PERT weights (§2.1) ---
+  RealWeight:
+    value: 1.0
+    source: "VariablesTable / §2.1"
+    note: "PERT realistic weight."
+  OptWeight:
+    value: 0.95
+    source: "VariablesTable / §2.1"
+    note: "PERT optimistic weight."
+  PesWeight:
+    value: 1.2
+    default: 1.1
+    range: [1.1, 1.5]
+    source: "VariablesTable / §2.1"
+    note: "Verified workbook value 1.2. Raise toward 1.5 with many unknowns."
+
+  # --- Hierarchy multipliers (§2.1) ---
+  EpicMultiplier:
+    value: 10
+    source: "§2.1"
+    note: "Epic-level linked-param impact multiplier; also epic:story ratio in §2.2."
+  FeatureMultiplier:
+    value: 2.5
+    source: "§2.1"
+    note: "Feature-level linked-param impact multiplier; also feature:story ratio in §2.2."
+
+  # --- Velocity model (§2.3) ---
+  AvgStoryPts:
+    value: 9
+    default: 8
+    range: [7, 10]
+    source: "Phases tab / §2.3"
+    note: "Points per engineer per sprint. Verified workbook value 9."
+  AIBoostMin:
+    value: 0.10
+    source: "§2.3"
+    note: "Low end of AI tooling velocity boost."
+  AIBoostMax:
+    value: 0.50
+    source: "§2.3"
+    note: "High end of AI tooling velocity boost. Discovery phases gain quality, not velocity."
+
+  # --- Capacity / role loading ratios (§2.5) ---
+  BARatio:
+    value: 0.1
+    source: "Phases tab / §2.5"
+  DesignerRatio:
+    value: 0.2
+    source: "Phases tab / §2.5"
+  DevOpsRatio:
+    value: 0.4
+    source: "Phases tab / §2.5"
+  QARatio:
+    value: 0.4
+    source: "Phases tab / §2.5"
+
+  # --- Time constants (§2.5) ---
+  HoursPerSprint:
+    value: 80
+    source: "Phases tab / §2.5"
+  WeeksInSprint:
+    value: 2
+    range: [1, 2]
+    source: "Phases tab / §2.5"
+    note: "Tool supports only 1 or 2."
+  WorkingMonthDays:
+    value: 21
+    source: "Phases tab / §2.5, §2.6"
+  HoursPerDay:
+    value: 8
+    source: "§2.6"
+    note: "Used in monthly resource cost: DayRate * WorkingMonthDays * 8."
+
+  # --- Risk matrix severity impacts (§2.4) ---
+  # 5x5 probability/severity matrix; the impact ladder applied to linked risks.
+  RiskImpactLow:
+    value: -0.25
+    source: "Risks tab / §2.4"
+  RiskImpactModerate:
+    value: -0.5
+    source: "Risks tab / §2.4"
+  RiskImpactHigh:
+    value: -0.75
+    source: "Risks tab / §2.4"
+  RiskImpactExtreme:
+    value: -1.0
+    source: "Risks tab / §2.4"

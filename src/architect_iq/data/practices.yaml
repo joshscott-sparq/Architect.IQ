@@ -1,0 +1,27 @@
+# Practices and their disciplines.
+# Source: spec §2.7.
+version: "1.0.0"
+source: "§2.7"
+
+practices:
+  "Platform Engineering & Cloud":
+    disciplines: [Cloud, Full Stack, Java, Mobile, .NET, Web]
+  "Data, Analytics & AI":
+    disciplines: [AI & ML, Data Engineering, Data Visualization]
+  "Global Delivery Organization":
+    disciplines:
+      - Business Analysis
+      - Financial Program Management
+      - Project & Program Management
+      - Quality Automation Engineering
+      - Quality Engineering
+  "Product Design & Development":
+    disciplines: [Design, Marketing Analytics, Product Strategy]
+  "Solutions Consulting":
+    disciplines: [Solutions Consultant, Solutions Architect]
+
+# Discipline-level constraints (§2.7).
+discipline_constraints:
+  "Solutions Architect":
+    min_tier: "Senior Lead"
+    note: "Solutions Architect staffed at Senior Lead and above only."

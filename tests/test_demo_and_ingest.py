@@ -1,0 +1,87 @@
+"""Contract: demo seeding, PDF extraction, image-drop fallback."""
+
+import io
+
+import pytest
+from fastapi.testclient import TestClient
+
+from architect_iq.demo import DEMO_SCENARIOS, is_seeded, seed_demo
+from architect_iq.persistence.store import SQLiteEstimateRepository
+from architect_iq.service import EstimateService
+
+
+@pytest.fixture()
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("ARCHITECTIQ_DB", str(tmp_path / "api.db"))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    import importlib
+
+    from architect_iq.api import app as app_module
+
+    importlib.reload(app_module)
+    return TestClient(app_module.app)
+
+
+def test_seed_demo_covers_all_patterns(tmp_path):
+    svc = EstimateService(repo=SQLiteEstimateRepository(tmp_path / "d.db"))
+    assert not is_seeded(svc)
+    summary = seed_demo(svc)
+    assert summary["created_count"] == len(DEMO_SCENARIOS)
+    assert is_seeded(svc)
+
+    # All three patterns represented (distinct architectures/diagrams).
+    patterns = {p for e in svc.repo.all_latest() for p in e.graph.matched_pattern_ids}
+    assert {"rag-databricks", "dotnet-modernization", "agentic-mcp"} <= patterns
+
+    # Idempotent: re-seed creates nothing new.
+    assert seed_demo(svc)["created_count"] == 0
+
+
+def test_seed_demo_produces_versioned_and_referenced(tmp_path):
+    svc = EstimateService(repo=SQLiteEstimateRepository(tmp_path / "d.db"))
+    seed_demo(svc)
+    latest = {e.graph.project_name: e for e in svc.repo.all_latest()}
+    # The .NET scenario was recomputed -> v2.
+    corom = latest["[Demo] Corom Manufacturing — Legacy .NET Modernization"]
+    assert corom.version == 2
+
+
+def test_demo_endpoints(client):
+    assert client.get("/api/demo/status").json()["seeded"] is False
+    seeded = client.post("/api/demo/seed").json()
+    assert seeded["created_count"] == len(DEMO_SCENARIOS)
+    status = client.get("/api/demo/status").json()
+    assert status["seeded"] is True and status["count"] >= len(DEMO_SCENARIOS)
+
+
+def test_extract_pdf(client):
+    # A valid (text-less) PDF authored via pypdf. Exercises the parse path and the
+    # scanned/no-text fallback note.
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=612, height=792)
+    buf = io.BytesIO()
+    writer.write(buf)
+
+    resp = client.post("/api/context/extract", files={"file": ("reqs.pdf", buf.getvalue(), "application/pdf")})
+    assert resp.status_code == 200, resp.text
+    assert "no extractable text" in resp.json()["text"]
+
+
+def test_extract_pdf_rejects_garbage(client):
+    resp = client.post("/api/context/extract", files={"file": ("bad.pdf", b"not a pdf", "application/pdf")})
+    assert resp.status_code == 422
+
+
+def test_extract_image_fallback_without_key(client):
+    # 1x1 transparent PNG.
+    png = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+        "890000000d49444154789c6360000002000100ffff03000006000557bfabd400"
+        "00000049454e44ae426082"
+    )
+    resp = client.post("/api/context/extract", files={"file": ("arch.png", png, "image/png")})
+    assert resp.status_code == 200, resp.text
+    # No API key in this test -> graceful placeholder, not an error.
+    assert "ANTHROPIC_API_KEY" in resp.json()["text"]

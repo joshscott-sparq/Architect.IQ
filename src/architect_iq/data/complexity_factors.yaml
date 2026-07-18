@@ -1,0 +1,78 @@
+# Complexity factor library.
+# Source: Project_Estimation_Tool_Template_v1.xlsx, RiskLookups!A44:C152 (spec §2.4).
+#
+# DESIGN: This file is DATA. Adding, removing, or recalibrating a factor family is
+# a data edit and requires no code change (spec constraint). The loader validates
+# structure only; the engine reads impacts from here.
+#
+# PROVENANCE / FLAGGED GAP (see DECISIONS.md D5, D6):
+#   §2.4 documents the severity ladder (0 / -0.25 / -0.5 / -0.75 / -1.0) and names
+#   the families that start at -0.25 even at level 1 (integrations,
+#   security/compliance, staffing difficulty), but does not transcribe the exact
+#   per-family curves from RiskLookups!A44:C152. Values below use the documented
+#   ladder and are tagged provenance: default-ladder-pending-A44:C152. Replace with
+#   verified workbook values when available — no code change needed.
+#   §2.4 states 27 families; the prose enumerates 29 (compound entries split). To
+#   reconcile, adjust this list against the workbook.
+version: "1.0.0"
+source: "RiskLookups!A44:C152"
+provenance_default: "default-ladder-pending-A44:C152"
+
+# Severity ladder impacts (§2.4). Risk-linked factors use Low/Moderate/High/Extreme.
+severity_ladder:
+  None:     0.0
+  Low:     -0.25
+  Moderate: -0.5
+  High:    -0.75
+  Extreme: -1.0
+
+families:
+  # --- Project ---
+  - { family: "Team Size",           category: "Project", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  - { family: "Duration",            category: "Project", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  - { family: "Schedule Flexibility", category: "Project", baseline: 0.0,  levels: [None, Low, Moderate, High] }
+  - { family: "Scope Flexibility",   category: "Project", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  - { family: "Cost Flexibility",    category: "Project", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+
+  # --- Roadmap / Backlog ---
+  - { family: "Problem Clarity",        category: "Roadmap/Backlog", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Requirements Stability", category: "Roadmap/Backlog", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Priority Clarity",       category: "Roadmap/Backlog", baseline: 0.0, levels: [None, Low, Moderate, High] }
+
+  # --- Client ---
+  - { family: "Strategic Importance", category: "Client", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Level of Org Change",  category: "Client", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Product Maturity",     category: "Client", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Agile Maturity",       category: "Client", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Engagement Level",     category: "Client", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Budget Constraints",   category: "Client", baseline: 0.0, levels: [None, Low, Moderate, High] }
+
+  # --- Market ---
+  - { family: "Market Volatility", category: "Market", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "Competition",       category: "Market", baseline: 0.0, levels: [None, Low, Moderate, High] }
+
+  # --- Dependencies ---
+  - { family: "Other Dependencies",     category: "Dependencies", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  - { family: "Third-Party Dependency", category: "Dependencies", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  # Integrations start at -0.25 even at level 1 (§2.4, §2.63).
+  - { family: "Integrations",           category: "Dependencies", baseline: -0.25, levels: [Low, Moderate, High, Extreme] }
+
+  # --- Technology ---
+  - { family: "Familiarity w/ Tech", category: "Technology", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  # Sec & Compliance Risks start at -0.25 (§2.4). Maps to client compliance posture (§3.4).
+  - { family: "Sec & Compliance Risks", category: "Technology", baseline: -0.25, levels: [Low, Moderate, High, Extreme] }
+  - { family: "Testing Complexity",  category: "Technology", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  - { family: "Legacy Ecosystem",    category: "Technology", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  - { family: "Vendor Lock-In",      category: "Technology", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+
+  # --- Access ---
+  - { family: "Data Availability/Quality", category: "Access", baseline: 0.0, levels: [None, Low, Moderate, High] }
+  - { family: "System Access",             category: "Access", baseline: 0.0, levels: [None, Low, Moderate, High] }
+
+  # --- Team ---
+  - { family: "Onboarding Speed",    category: "Team", baseline: 0.0,   levels: [None, Low, Moderate, High] }
+  # Staffing Difficulty starts at -0.25 (§2.4).
+  - { family: "Staffing Difficulty", category: "Team", baseline: -0.25, levels: [Low, Moderate, High, Extreme] }
+
+  # --- Other ---
+  - { family: "Other", category: "Other", baseline: -0.25, levels: [Low, Moderate, High, Extreme] }

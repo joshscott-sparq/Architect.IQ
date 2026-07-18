@@ -1,0 +1,32 @@
+# EXAMPLE pricing table with PLACEHOLDER rates. Safe to commit.
+# Real rates go in pricing.local.yaml (gitignored). See SCHEMA.md.
+# Rates below are illustrative round numbers, NOT Sparq rates.
+version: "1.0.0"
+source: "PriceListTable / §2.6 (PLACEHOLDER RATES)"
+currency: "USD"
+
+# Per working-day rate by (discipline, tier, location). location: US (onshore) or NS (nearshore).
+# Monthly cost = day_rate * WorkingMonthDays(21) * HoursPerDay(8) is applied by the pricing engine.
+rates:
+  # Platform Engineering & Cloud
+  - { discipline: "Full Stack", tier: "Associate",   location: "US", day_rate: 1000 }
+  - { discipline: "Full Stack", tier: "Analyst",     location: "US", day_rate: 1200 }
+  - { discipline: "Full Stack", tier: "Senior",      location: "US", day_rate: 1600 }
+  - { discipline: "Full Stack", tier: "Senior Lead", location: "US", day_rate: 2000 }
+  - { discipline: "Full Stack", tier: "Principal",   location: "US", day_rate: 2400 }
+  - { discipline: "Full Stack", tier: "Senior",      location: "NS", day_rate: 900 }
+  - { discipline: "Full Stack", tier: "Senior Lead", location: "NS", day_rate: 1100 }
+  # Data, Analytics & AI
+  - { discipline: "Data Engineering", tier: "Senior",      location: "US", day_rate: 1700 }
+  - { discipline: "Data Engineering", tier: "Senior Lead", location: "US", day_rate: 2100 }
+  - { discipline: "AI & ML",          tier: "Principal",   location: "US", day_rate: 2600 }
+  # Global Delivery Organization
+  - { discipline: "Project & Program Management", tier: "Senior Lead", location: "US", day_rate: 1900 }
+  - { discipline: "Project & Program Management", tier: "Principal",   location: "US", day_rate: 2300 }
+  - { discipline: "Business Analysis",            tier: "Senior",      location: "US", day_rate: 1400 }
+  - { discipline: "Quality Engineering",          tier: "Analyst",     location: "US", day_rate: 1100 }
+  - { discipline: "Quality Automation Engineering", tier: "Senior",    location: "US", day_rate: 1500 }
+  # Product Design & Development
+  - { discipline: "Design", tier: "Senior", location: "US", day_rate: 1500 }
+  # Solutions Consulting
+  - { discipline: "Solutions Architect", tier: "Senior Lead", location: "US", day_rate: 2500 }

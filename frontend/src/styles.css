@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Sparq brand system (sparq-brand-guidelines) as Tailwind theme tokens.
+   These generate utilities like bg-brand-orange, text-brand-green, border-line.
+   60-30-10: neutrals + orange + green dominate; aurora is AI/innovation only. */
+@theme {
+  --color-brand-orange: #e75437; /* Signal - CTAs/emphasis */
+  --color-brand-orange-deep: #a23f2b;
+  --color-brand-green: #667e66; /* Growth - secondary anchor */
+  --color-brand-sage: #3c4e3c;
+  --color-brand-mint: #d8ded8;
+  --color-brand-aurora: #b8f0a1; /* AI accent only, <=10% */
+  --color-brand-dark: #231a17; /* Dark Foundation */
+  --color-brand-deepest: #16110f;
+  --color-surface: #f9f7f5; /* True white */
+  --color-canvas: #f2ecea; /* Near white background */
+  --color-line: #d9d1ce; /* Light tan border */
+  --color-ink: #231a17; /* Text */
+  --color-muted: #71635c; /* Warm gray-brown */
+
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+  font-family: var(--font-sans);
+  margin: 0;
+}
+
+/* A few repeated widgets kept as component classes (idiomatic Tailwind @apply). */
+@layer components {
+  .card {
+    @apply bg-surface border border-line rounded-xl p-5 mb-4;
+  }
+  .card-h {
+    @apply m-0 mb-3 text-sm uppercase tracking-wider text-muted font-semibold;
+  }
+  .btn {
+    @apply font-sans cursor-pointer rounded-lg border border-line bg-surface px-3.5 py-2 transition-colors hover:border-brand-orange disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply bg-brand-orange text-white border-brand-orange font-semibold hover:brightness-105;
+  }
+  .field {
+    @apply w-full font-sans px-3 py-2.5 border border-line rounded-lg bg-white text-ink;
+  }
+  .label {
+    @apply block text-[13px] font-semibold mt-3 mb-1;
+  }
+  .badge {
+    @apply inline-block text-[11px] px-2 py-0.5 rounded-md font-semibold;
+  }
+}
+
+/* Mermaid keeps its own SVG sizing. */
+.mermaid-wrap {
+  @apply overflow-x-auto rounded-lg p-3.5;
+  background: #fdfcfb;
+}
+.mermaid-wrap svg {
+  max-width: 100%;
+  height: auto;
+}

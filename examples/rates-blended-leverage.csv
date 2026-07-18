@@ -1,0 +1,21 @@
+discipline,tier,location,day_rate
+AI & ML,Senior,US,1150
+AI & ML,Senior Lead,US,1400
+Data Engineering,Senior,US,1000
+Data Engineering,Senior Lead,US,1250
+Data Visualization,Senior,US,880
+Full Stack,Senior,US,950
+Full Stack,Senior Lead,US,1200
+Web,Senior,US,880
+.NET,Senior,US,950
+.NET,Senior Lead,US,1200
+Cloud,Senior,US,1000
+Java,Senior,US,950
+Mobile,Senior,US,950
+Quality Engineering,Senior,US,760
+Quality Automation Engineering,Senior,US,820
+Business Analysis,Senior,US,780
+Design,Senior,US,820
+Product Strategy,Senior,US,950
+Solutions Architect,Senior Lead,US,1500
+Project & Program Management,Senior Lead,US,1150

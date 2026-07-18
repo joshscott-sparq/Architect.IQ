@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Node / frontend
+node_modules/
+.vite/
+
+# SQLite databases (estimates persist locally; never commit)
+*.db
+
+# Environment / secrets
+.env
+
+# Local-only Claude Code settings (keep launch.json shared)
+.claude/settings.local.json
+
+# Architect.IQ: real pricing rates must never be committed.
+# Only pricing.example.yaml (placeholder rates) is tracked. See src/architect_iq/data/SCHEMA.md.
+pricing.local.yaml
+**/pricing.local.yaml
+
+# Generated estimate outputs
+*.xlsx
+!**/templates/*.xlsx
+out/
+
+# TS build info
+*.tsbuildinfo

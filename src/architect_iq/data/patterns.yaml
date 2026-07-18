@@ -1,0 +1,98 @@
+# Reference-architecture pattern library.
+# Source: spec §4.2 (examples named there), pulled forward from Phase 2 (DECISIONS.md D8).
+#
+# DESIGN: DATA, not code. Adding a pattern is a data edit. Each pattern carries a
+# component template, typical integrations, and a parametric cost model that gives
+# the top-down estimate reconciled against the bottom-up work-item rollup (§4.2).
+#
+# SEED SET: three representative patterns to prove the mechanism. base_effort_points
+# and scaling_drivers are STARTER calibration values, to be tuned against actuals in
+# the Phase 4 calibration loop. Story points throughout.
+version: "0.1.0"
+source: "§4.2 (seed set)"
+
+patterns:
+  - id: rag-databricks
+    name: "RAG platform on Databricks"
+    description: >-
+      Retrieval-augmented generation platform: ingestion and embedding pipelines,
+      a vector store, a retrieval/orchestration service, and a chat/query UI.
+    when_to_use: >-
+      Client wants grounded LLM answers over their own corpus, already on
+      Databricks or Spark, with governance and evaluation needs.
+    match_signals: [rag, retrieval, embeddings, vector, databricks, knowledge base, llm, grounding, unstructured]
+    components:
+      - { name: "Ingestion Pipeline", component_type: pipeline, technology: "Databricks / Spark", discipline: "Data Engineering", description: "Load and chunk source documents." }
+      - { name: "Embedding Pipeline", component_type: pipeline, technology: "Databricks", discipline: "AI & ML", description: "Generate and refresh embeddings." }
+      - { name: "Vector Store", component_type: datastore, technology: "Vector DB", discipline: "Data Engineering", description: "Similarity search over embeddings." }
+      - { name: "Retrieval Orchestrator", component_type: service, technology: "Python service", discipline: "AI & ML", description: "Retrieve, assemble context, call the LLM." }
+      - { name: "Query UI", component_type: ui, technology: "Web", discipline: "Web", description: "Chat / search interface." }
+      - { name: "Evaluation Harness", component_type: service, technology: "Python", discipline: "AI & ML", description: "Offline quality and regression evaluation." }
+    integrations:
+      - { source: "Ingestion Pipeline", target: "Embedding Pipeline", kind: data_flow, label: "chunks" }
+      - { source: "Embedding Pipeline", target: "Vector Store", kind: data_flow, label: "vectors" }
+      - { source: "Retrieval Orchestrator", target: "Vector Store", kind: data_flow, label: "similarity query" }
+      - { source: "Query UI", target: "Retrieval Orchestrator", kind: integrates_with, label: "query API" }
+    parametric_cost:
+      base_effort_points: 180
+      scaling_drivers:
+        data_source: 13
+        integration: 8
+        environment: 5
+      risk_factor_families: ["Familiarity w/ Tech", "Data Availability/Quality", "Testing Complexity"]
+
+  - id: dotnet-modernization
+    name: "Legacy .NET modernization"
+    description: >-
+      Incremental modernization of a legacy .NET monolith: strangler-fig
+      decomposition into services behind a gateway, data migration, and CI/CD.
+    when_to_use: >-
+      Aging .NET monolith, on-prem or lift-and-shift cloud, needing decomposition,
+      reliability, and delivery-velocity improvements without a big-bang rewrite.
+    match_signals: [.net, dotnet, legacy, monolith, modernization, strangler, migration, on-prem, refactor, mainframe]
+    components:
+      - { name: "API Gateway", component_type: gateway, technology: ".NET / cloud gateway", discipline: ".NET", description: "Route between legacy and new services." }
+      - { name: "Extracted Service", component_type: service, technology: ".NET", discipline: ".NET", description: "Bounded-context service peeled from the monolith." }
+      - { name: "Legacy Monolith", component_type: external_system, technology: ".NET Framework", discipline: ".NET", description: "Existing system, strangled over time." }
+      - { name: "Migrated Datastore", component_type: datastore, technology: "SQL", discipline: "Data Engineering", description: "Target data store." }
+      - { name: "CI/CD Pipeline", component_type: pipeline, technology: "CI/CD", discipline: "Cloud", description: "Build, test, deploy automation." }
+    integrations:
+      - { source: "API Gateway", target: "Extracted Service", kind: integrates_with, label: "routed calls" }
+      - { source: "API Gateway", target: "Legacy Monolith", kind: integrates_with, label: "fallback routes" }
+      - { source: "Extracted Service", target: "Migrated Datastore", kind: data_flow, label: "reads/writes" }
+    parametric_cost:
+      base_effort_points: 220
+      scaling_drivers:
+        extracted_service: 34
+        integration: 13
+        data_entity: 5
+        environment: 5
+      risk_factor_families: ["Legacy Ecosystem", "Integrations", "Sec & Compliance Risks", "Testing Complexity"]
+
+  - id: agentic-mcp
+    name: "Agentic workflow on MCP infra"
+    description: >-
+      Multi-step agentic workflow: an orchestrator calling tools over MCP, with
+      typed tool servers, guardrails, and an observability/eval layer.
+    when_to_use: >-
+      Client wants an autonomous or semi-autonomous workflow that calls internal
+      systems as tools, needs auditability, and is standardizing on MCP.
+    match_signals: [agent, agentic, mcp, tools, orchestration, workflow, autonomous, copilot, tool-calling]
+    components:
+      - { name: "Agent Orchestrator", component_type: service, technology: "Python / MCP client", discipline: "AI & ML", description: "Plans and drives the multi-step loop." }
+      - { name: "MCP Tool Server", component_type: integration, technology: "MCP server", discipline: "Full Stack", description: "Exposes an internal system as typed tools." }
+      - { name: "Guardrail Service", component_type: service, technology: "Python", discipline: "AI & ML", description: "Policy, safety, and approval gating." }
+      - { name: "Observability Layer", component_type: service, technology: "Tracing / eval", discipline: "AI & ML", description: "Trace, evaluate, and audit runs." }
+      - { name: "Operator UI", component_type: ui, technology: "Web", discipline: "Web", description: "Human-in-the-loop review and approvals." }
+    integrations:
+      - { source: "Agent Orchestrator", target: "MCP Tool Server", kind: integrates_with, label: "MCP tool calls" }
+      - { source: "Agent Orchestrator", target: "Guardrail Service", kind: integrates_with, label: "policy checks" }
+      - { source: "Agent Orchestrator", target: "Observability Layer", kind: data_flow, label: "traces" }
+      - { source: "Operator UI", target: "Agent Orchestrator", kind: integrates_with, label: "review/approve" }
+    parametric_cost:
+      base_effort_points: 150
+      scaling_drivers:
+        tool_server: 21
+        integration: 8
+        environment: 5
+      risk_factor_families: ["Familiarity w/ Tech", "Sec & Compliance Risks", "Integrations"]

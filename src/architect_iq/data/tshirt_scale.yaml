@@ -1,0 +1,16 @@
+# T-shirt sizing scale.
+# Source: Project_Estimation_Tool_Template_v1.xlsx, ResourceLookups!A62:D71 (spec §2.2).
+# Values are already story-point-scaled: Feature = 2.5 stories, Epic = 10 stories
+# of the same size (e.g. M: Story 5, Feature 12.5, Epic 50). See DECISIONS.md D2.
+version: "1.0.0"
+source: "ResourceLookups!A62:D71"
+sizes:
+  XXXS: { epic: 5,   feature: 1.25, story: 0.5 }
+  XXS:  { epic: 10,  feature: 2.5,  story: 1 }
+  XS:   { epic: 20,  feature: 5,    story: 2 }
+  S:    { epic: 30,  feature: 7.5,  story: 3 }
+  M:    { epic: 50,  feature: 12.5, story: 5 }
+  L:    { epic: 80,  feature: 20,   story: 8 }
+  XL:   { epic: 130, feature: 32.5, story: 13 }
+  XXL:  { epic: 210, feature: 52.5, story: 21 }
+  XXXL: { epic: 340, feature: 85,   story: 34 }

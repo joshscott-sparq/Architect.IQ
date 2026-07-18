@@ -1,0 +1,21 @@
+# Seniority tiers and locations.
+# Source: spec §2.6 (TeamSparq, Code.gs). Tier weight drives team-plan sort order
+# (descending), with Project & Program Management rows floated first.
+version: "1.0.0"
+source: "§2.6 (Code.gs)"
+
+tiers:
+  - { name: "Associate",    weight: 1 }
+  - { name: "Analyst",      weight: 2 }
+  - { name: "Senior",       weight: 3 }
+  - { name: "Senior Lead",  weight: 4 }
+  - { name: "Principal",    weight: 5 }
+  - { name: "Sr Principal", weight: 6 }
+  - { name: "Director",     weight: 7 }
+
+# Pricing locations (§2.6). US = onshore, NS = nearshore.
+locations: [US, NS]
+
+# Disciplines floated to the top of the team plan regardless of tier weight (§2.6).
+priority_disciplines:
+  - "Project & Program Management"
