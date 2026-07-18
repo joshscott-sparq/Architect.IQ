@@ -34,6 +34,7 @@ export default function App() {
   const [menu, setMenu] = useState<null | "nav" | "user">(null);
   const [nonce, setNonce] = useState(0);
   const [ctxCollapsed, setCtxCollapsed] = useState(() => localStorage.getItem("aiq_ctx_collapsed") === "1");
+  const [demoError, setDemoError] = useState<string | null>(null);
   const demoTried = useRef(false);
 
   function toggleCtx() {
@@ -43,12 +44,15 @@ export default function App() {
   useEffect(() => {
     if (!DEMO_MODE || demoTried.current || loading || user) return;
     demoTried.current = true;
-    login("admin@architect.iq", "admin123").then(() => api.seedDemo()).then(() => setListKey((k) => k + 1)).catch(() => {});
+    login("admin@architect.iq", "admin123")
+      .then(() => api.seedDemo())
+      .then(() => setListKey((k) => k + 1))
+      .catch(() => setDemoError("Couldn't reach the backend on :8000. Start it first (see README Quick start), then reload."));
   }, [loading, user]);
 
   if (SHARED_MATCH) return <SharedPage token={SHARED_MATCH[1]} />;
   if (loading) return <div className="p-10 text-muted">Loading…</div>;
-  if (!user) return <Login />;
+  if (!user) return <Login demoError={demoError} />;
 
   const isAdmin = user.role === "admin";
   const isClient = user.role === "client";

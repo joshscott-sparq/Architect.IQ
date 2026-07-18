@@ -168,6 +168,12 @@ npm run demo     # demo mode: auto-logs in as admin with sample data (easiest fi
 
 Open the URL Vite prints (default http://localhost:5173).
 
+**Demo mode needs the backend.** `npm run demo` auto-logs in and seeds sample data
+by calling the backend, so Terminal 1 must be running first. If it isn't, the
+sign-in screen shows "Couldn't reach the backend on :8000" — start the backend and
+reload. If Vite reports port 5173 in use, it serves on the next port (5174, …);
+open the URL it actually prints rather than assuming 5173.
+
 ## Local development
 
 Backend — Python 3.12 (this repo uses [`uv`](https://docs.astral.sh/uv/)):

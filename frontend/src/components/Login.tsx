@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 
-export function Login() {
+export function Login({ demoError }: { demoError?: string | null }) {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +45,11 @@ export function Login() {
             Architect<span className="text-brand-orange">.IQ</span>
           </div>
         </div>
+        {demoError && (
+          <div className="mb-4 rounded-lg border border-brand-orange/40 bg-brand-orange/10 text-white text-[13px] p-3">
+            {demoError}
+          </div>
+        )}
         <form onSubmit={submit} className="bg-surface rounded-xl p-6 border border-line">
           <h1 className="text-lg font-semibold mb-4">Sign in</h1>
           <label className="label">Email</label>
