@@ -16,6 +16,10 @@ from dataclasses import dataclass, field
 
 from .core.recompute import RecomputeOverrides, recompute
 from .memory.priors import ActualOutcome
+from .models.context import (
+    AccessMode, ConnectionStatus, ContextEntry, ContextPanel, ContextPhase, ContextTab,
+    ExternalSource, ExternalSourceType, PhaseMethod, SourceType,
+)
 from .models.org import Permission
 from .models.results import ClientContext
 from .models.team import RateRow
@@ -123,6 +127,87 @@ DEMO_SCENARIOS: list[DemoScenario] = [
 ]
 
 
+def _lead_context_panel(opp, acct) -> ContextPanel:
+    """A fully-populated Context Panel for the lead demo estimate (Acme RAG).
+
+    Every tab carries sample data so demo mode exercises the panel end to end.
+    External sources link to the opportunity's real Salesforce ids and Notion
+    page, plus a source that still needs authentication (so both states show).
+    """
+    sf_account = acct.sf_account_id if acct else ""
+    sf_opp = opp.sf_opportunity_id if opp else ""
+    notion_ref = opp.notion_page_ref if opp else ""
+    return ContextPanel(
+        requirements=[
+            ContextEntry(
+                id="req-1", tab=ContextTab.REQUIREMENTS, source_type=SourceType.MANUAL,
+                content=(
+                    "- Build a retrieval augmented generation platform over ten years of claims documents\n"
+                    "- Adjusters query unstructured policy and claim files and receive grounded llm answers with citations"
+                ),
+            ),
+            ContextEntry(
+                id="req-2", tab=ContextTab.REQUIREMENTS, source_type=SourceType.FILE,
+                reference="claims-assistant-prd.pdf",
+                content=(
+                    "- Ingestion and embedding pipelines run on databricks with a managed vector store\n"
+                    "- Evaluation harness measures answer quality and guards against regressions\n"
+                    "- Web chat UI for the adjuster team with feedback capture"
+                ),
+            ),
+        ],
+        risks=[
+            ContextEntry(
+                id="rk-1", tab=ContextTab.RISKS, source_type=SourceType.MANUAL, scope="estimate",
+                content="Primary claims data owner is on leave in Q3, which slows data access and labeling.",
+            ),
+            ContextEntry(
+                id="rk-2", tab=ContextTab.RISKS, source_type=SourceType.MANUAL, scope="ph-mvp",
+                content="PHI handling requires a security review before the MVP ships to real adjusters.",
+            ),
+        ],
+        accelerators=[
+            ContextEntry(
+                id="ac-1", tab=ContextTab.ACCELERATORS, source_type=SourceType.MANUAL, scope="estimate",
+                content="A reference RAG implementation already exists in-house to build from.",
+            ),
+        ],
+        assumptions=[
+            ContextEntry(
+                id="as-1", tab=ContextTab.ASSUMPTIONS, source_type=SourceType.MANUAL,
+                content="Client provisions the Databricks workspace and grants data access by kickoff.",
+            ),
+        ],
+        phases=[
+            ContextPhase(id="ph-disc", name="Discovery", method=PhaseMethod.RELATIVE,
+                         description="Data access, corpus review, evaluation design."),
+            ContextPhase(id="ph-mvp", name="MVP", method=PhaseMethod.DURATION, duration_weeks=8,
+                         description="Grounded answers with citations for a pilot adjuster group."),
+            ContextPhase(id="ph-v1", name="Version 1", method=PhaseMethod.RELATIVE,
+                         description="Full rollout, feedback capture, regression guardrails."),
+        ],
+        external_sources=[
+            ExternalSource(id="es-sparqos", type=ExternalSourceType.SPARQOS, display_name="SparqOS",
+                           status=ConnectionStatus.CONNECTED, access_mode=AccessMode.READ),
+            ExternalSource(
+                id="es-sf", type=ExternalSourceType.SALESFORCE, display_name="Acme — Claims KA (Salesforce)",
+                status=ConnectionStatus.CONNECTED, access_mode=AccessMode.READ,
+                config={"account": sf_account, "opportunity": sf_opp},
+            ),
+            ExternalSource(
+                id="es-notion", type=ExternalSourceType.NOTION, display_name="Opportunity notes (Notion)",
+                status=ConnectionStatus.CONNECTED, access_mode=AccessMode.READ,
+                config={"page": notion_ref},
+            ),
+            ExternalSource(
+                id="es-gh", type=ExternalSourceType.GITHUB, display_name="acme/claims-rag (prior work)",
+                status=ConnectionStatus.NEEDS_AUTH, access_mode=AccessMode.READ,
+                config={"repo": "acme/claims-rag", "branch": "main"},
+            ),
+        ],
+    )
+
+
 def is_seeded(service: EstimateService) -> bool:
     names = {s.project_name for s in service.list_estimates()}
     return any(sc.project_name in names for sc in DEMO_SCENARIOS)
@@ -189,6 +274,17 @@ def seed_demo(service: EstimateService) -> dict:
     # scenarios, a share to the sample user, a public link, and comments.
     if created:
         lead = created[0]["estimate_id"]
+
+        # Populate the Context Panel so every tab is demonstrated with real data
+        # (Requirements/Risks/Accelerators/Assumptions/Phases/External Sources).
+        opp = directory.get_opportunity(created[0]["opportunity_id"])
+        acct = directory.get_account(opp.account_id) if opp else None
+        panel = _lead_context_panel(opp, acct)
+        try:
+            service.recalculate_from_context(lead, panel)
+        except Exception:  # noqa: BLE001 - context recalc is best-effort in seeding
+            pass
+
         try:
             service.compute_scenarios(lead)
         except Exception:  # noqa: BLE001 - scenarios are best-effort in seeding

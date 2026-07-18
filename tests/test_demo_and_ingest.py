@@ -41,6 +41,28 @@ def test_seed_demo_produces_versioned_and_referenced(tmp_path):
     assert corom.version == 2
 
 
+def test_seed_demo_populates_context_panel(tmp_path):
+    """The lead estimate demonstrates every Context Panel tab with sample data."""
+    svc = EstimateService(repo=SQLiteEstimateRepository(tmp_path / "d.db"))
+    summary = seed_demo(svc)
+    lead = svc.get_estimate(summary["created"][0]["estimate_id"])
+    panel = lead.graph.context_panel
+    assert len(panel.requirements) >= 2
+    assert len(panel.risks) >= 1
+    assert len(panel.accelerators) >= 1
+    assert len(panel.assumptions) >= 1
+    assert len(panel.phases) >= 3
+    # External sources cover both a connected and a needs-auth state.
+    statuses = {s.status.value for s in panel.external_sources}
+    assert "connected" in statuses and "needs_authentication" in statuses
+    # A Salesforce source is wired to the opportunity's real ids.
+    sf = next(s for s in panel.external_sources if s.type.value == "salesforce")
+    assert sf.config.get("opportunity")
+    # Risks fed the estimation factors; the assumption was recorded.
+    assert any(f.family.startswith("Risk:") for f in lead.graph.complexity_factors)
+    assert any(a.startswith("Assumption: Client provisions") for a in lead.graph.assumptions)
+
+
 def test_demo_endpoints(client):
     assert client.get("/api/demo/status").json()["seeded"] is False
     seeded = client.post("/api/demo/seed").json()
