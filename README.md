@@ -88,8 +88,15 @@ every artifact is a projection of one object. See
   config, JumpCloud via the same OIDC path.
 
 **Demo mode** — `npm run demo` auto-logs in as admin and loads curated sample data
-covering every feature: three roles, accounts/opportunities, scenarios, a shared
-estimate, a public link, and comments.
+covering every feature: three roles, accounts/opportunities (with Salesforce ids +
+Notion refs), three distinct architectures, memory/prior tuning, versioning,
+scenarios, a shared estimate, a public link, comments, tags, a clone, and two rate
+cards. The lead estimate has a fully-populated **Context Panel** — all six tabs
+(requirements from manual text and a file, scoped risks, an accelerator, an
+assumption, Discovery/MVP/V1 phases, and external sources wired to the
+opportunity's real Salesforce/Notion links plus a needs-auth source) — so the panel
+is exercised end to end. On a fresh database the data is seeded automatically; if a
+demo DB carries prior manual-test residue, reseed a clean one.
 
 ## Sample logins (dev)
 
