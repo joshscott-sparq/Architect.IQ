@@ -91,9 +91,10 @@ every artifact is a projection of one object. See
 - **Auth:** local email+password now, JWT sessions; Google SSO drops in via env
   config, JumpCloud via the same OIDC path.
 
-**Demo mode** — `npm run demo` auto-logs in as admin and loads curated sample data
-covering every feature: three roles, accounts/opportunities (with Salesforce ids +
-Notion refs), three distinct architectures, memory/prior tuning, versioning,
+**Demo mode** — `./dev.sh demo` (or `npm run demo` in `frontend/`) auto-logs in
+as admin and loads curated sample data covering every feature: three roles,
+accounts/opportunities (with Salesforce ids + Notion refs), three distinct
+architectures, memory/prior tuning, versioning,
 scenarios, a shared estimate, a public link, comments, tags, a clone, and two rate
 cards. The lead estimate has a fully-populated **Context Panel** — all six tabs
 (requirements from manual text and a file, scoped risks, an accelerator, an
