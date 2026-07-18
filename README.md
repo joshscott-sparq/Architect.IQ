@@ -14,6 +14,11 @@ every artifact is a projection of one object. See
 ## Features
 
 **Estimation**
+- **Live editor**: no "Generate" button — the estimate builds from whatever
+  you've entered and updates as you add requirements/context, auto-saving in
+  place. Deliberate actions (recompute, scenarios, re-cost) snapshot versions.
+- **Clone** an estimate to test alternative assumptions (a clone is never the
+  opportunity's active/official estimate).
 - Architecture-first: PRD + client context matched to a reference pattern
   (RAG on Databricks, .NET modernization, agentic-on-MCP), instantiated into
   components, work items, effort, team, and cost.

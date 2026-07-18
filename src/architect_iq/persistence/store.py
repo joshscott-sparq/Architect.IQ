@@ -131,6 +131,41 @@ class SQLiteEstimateRepository(EstimateRepository):
             )
         return StoredEstimate(estimate_id, 1, graph, now)
 
+    def overwrite_latest(self, estimate_id: str, graph: SolutionGraph) -> StoredEstimate:
+        """Auto-save: replace the current version's graph in place (no new version).
+
+        Used for live editing of an estimate's inputs; deliberate actions
+        (recompute/recost/scenarios) still snapshot new versions via update().
+        """
+        now = _now()
+        with self._connect() as conn:
+            row = conn.execute("SELECT current_version FROM estimates WHERE id = ?", (estimate_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"estimate {estimate_id!r} not found")
+            version = row["current_version"]
+            conn.execute(
+                "UPDATE estimate_versions SET graph_json = ?, created_at = ? WHERE estimate_id = ? AND version = ?",
+                (graph.model_dump_json(), now, estimate_id, version),
+            )
+            conn.execute(
+                "UPDATE estimates SET updated_at = ?, project_name = ? WHERE id = ?",
+                (now, graph.project_name, estimate_id),
+            )
+        return StoredEstimate(estimate_id, version, graph, now)
+
+    def clone(self, estimate_id: str, owner_id: str | None = None) -> StoredEstimate:
+        """Copy the latest graph into a brand-new estimate (version 1).
+
+        Keeps the opportunity link but is never the active/official estimate.
+        """
+        src = self.get(estimate_id)
+        if src is None:
+            raise KeyError(f"estimate {estimate_id!r} not found")
+        _, opportunity_id = self.owner_and_opportunity(estimate_id)
+        graph = src.graph.model_copy(deep=True)
+        graph.project_name = f"{graph.project_name} (clone)"
+        return self.create(graph, owner_id=owner_id, opportunity_id=opportunity_id)
+
     def update(self, estimate_id: str, graph: SolutionGraph) -> StoredEstimate:
         now = _now()
         with self._connect() as conn:

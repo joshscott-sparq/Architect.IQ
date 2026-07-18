@@ -20,9 +20,20 @@ function Stat({ label, value, sub, range, fmt }: { label: string; value: string;
   );
 }
 
-export function EstimateView({ initial, canEdit = true, canComment = true, isPublic = false }: { initial: EstimateResponse; canEdit?: boolean; canComment?: boolean; isPublic?: boolean }) {
+export function EstimateView({ initial, canEdit = true, canComment = true, canClone = false, isPublic = false, onClone }: { initial: EstimateResponse; canEdit?: boolean; canComment?: boolean; canClone?: boolean; isPublic?: boolean; onClone?: (id: string) => void }) {
   const readOnly = !canEdit;
   const [est, setEst] = useState(initial);
+  const [cloning, setCloning] = useState(false);
+
+  async function clone() {
+    setCloning(true);
+    try {
+      const c = await api.cloneEstimate(est.estimate_id);
+      onClone?.(c.estimate_id);
+    } finally {
+      setCloning(false);
+    }
+  }
   const [aiBoost, setAiBoost] = useState(0);
   const [engineers, setEngineers] = useState(
     est.graph.team_plan.roles.filter((r) => r.discipline !== "Project & Program Management").length || 3
@@ -84,7 +95,12 @@ export function EstimateView({ initial, canEdit = true, canComment = true, isPub
         <h1 className="m-0 text-[22px] font-bold">{g.project_name}</h1>
         <span className="badge bg-orange-100 text-brand-orange">v{est.version}</span>
         {g.matched_pattern_ids.map((p) => <span key={p} className="badge bg-brand-mint text-brand-sage">{p}</span>)}
-        <label className="ml-auto flex items-center gap-1.5 font-medium text-sm">
+        {canClone && (
+          <button className="btn ml-auto text-[13px]" onClick={clone} disabled={cloning}>
+            {cloning ? "Cloning…" : "Clone to test assumptions"}
+          </button>
+        )}
+        <label className={"flex items-center gap-1.5 font-medium text-sm" + (canClone ? "" : " ml-auto")}>
           <input type="checkbox" checked={oralsMode} onChange={(e) => setOralsMode(e.target.checked)} />
           Client-safe (hide pricing)
         </label>

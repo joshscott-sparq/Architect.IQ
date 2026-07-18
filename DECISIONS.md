@@ -56,6 +56,19 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D19. Live estimation: auto-build, auto-save, clone
+**Call:** The estimate editor has no "Generate" button. It debounces input
+changes (~900ms) and builds/updates the estimate automatically, saving in place
+via `POST /api/estimates/{id}/rebuild` (store `overwrite_latest`, no new version)
+so continuous editing doesn't spam versions. Deliberate actions (recompute,
+recost, scenarios) still snapshot new versions. `POST /api/estimates/{id}/clone`
+copies an estimate into a new one (version 1, "(clone)" suffix) to test other
+assumptions; a clone keeps the opportunity link but is never the active/official
+estimate (one active per opportunity is preserved). Clients cannot create or clone.
+**Why:** Owner asked to drop the Generate button (build from whatever info is
+present, update as more arrives), auto-save on every update, and add cloning to
+test alternative assumptions.
+
 ## D18. Auth, RBAC, domain model, sharing (local login now, OIDC-ready)
 **Call:** Added users/roles, an Account -> Opportunity -> Estimate domain model,
 estimate sharing, and public links.

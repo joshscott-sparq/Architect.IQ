@@ -76,6 +76,13 @@ export const api = {
     match_override?: string | null;
     opportunity_id?: string | null;
   }) => http<EstimateResponse>("/api/estimates", jsonBody(body)),
+  rebuildEstimate: (id: string, body: {
+    project_name: string;
+    prd_text: string;
+    client_context: ClientContextInput;
+    opportunity_id?: string | null;
+  }) => http<EstimateResponse>(`/api/estimates/${id}/rebuild`, jsonBody(body)),
+  cloneEstimate: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/clone`, { method: "POST" }),
   recompute: (id: string, overrides: { ai_boost?: number; engineer_count?: number }) =>
     http<EstimateResponse>(`/api/estimates/${id}/recompute`, jsonBody(overrides)),
   recost: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/recost`, { method: "POST" }),

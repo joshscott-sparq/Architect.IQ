@@ -28,9 +28,6 @@ function NavButton({ active, onClick, children }: { active?: boolean; onClick: (
 }
 
 export default function App() {
-  // Public, no-login share route takes precedence over everything.
-  if (SHARED_MATCH) return <SharedPage token={SHARED_MATCH[1]} />;
-
   const { user, loading, login, logout } = useAuth();
   const [view, setView] = useState<View>("list");
   const [current, setCurrent] = useState<EstimateResponse | null>(null);
@@ -50,6 +47,9 @@ export default function App() {
       .then(() => setListKey((k) => k + 1))
       .catch(() => {});
   }, [loading, user]);
+
+  // Public, no-login share route takes precedence (checked after hooks run).
+  if (SHARED_MATCH) return <SharedPage token={SHARED_MATCH[1]} />;
 
   async function open(id: string) {
     const [est, acc] = await Promise.all([api.getEstimate(id), api.access(id).catch(() => ({ can_edit: false, can_comment: false }))]);
@@ -86,13 +86,13 @@ export default function App() {
 
       <main className="max-w-[1180px] mx-auto px-7 pt-6 pb-16">
         {seeding && <div className="text-muted text-sm mb-3">Loading demo data…</div>}
-        {view === "new" && !isClient && <NewEstimate onCreated={(e) => { setCurrent(e); setAccess({ can_edit: true, can_comment: true }); setView("view"); }} />}
+        {view === "new" && !isClient && <NewEstimate onOpen={open} />}
         {view === "list" && <EstimatesList key={listKey} onOpen={open} />}
         {view === "opps" && <OpportunitiesList onOpen={(id) => { setOppId(id); setView("opp"); }} />}
         {view === "opp" && oppId && <OpportunityView id={oppId} onOpenEstimate={open} />}
         {view === "rates" && !isClient && <RatesView />}
         {view === "admin" && isAdmin && <AdminView />}
-        {view === "view" && current && <EstimateView key={current.estimate_id + current.version} initial={current} canEdit={access.can_edit} canComment={access.can_comment} />}
+        {view === "view" && current && <EstimateView key={current.estimate_id + current.version} initial={current} canEdit={access.can_edit} canComment={access.can_comment} canClone={!isClient} onClone={open} />}
         {view === "view" && !current && <div className="text-muted">No estimate selected.</div>}
       </main>
     </>

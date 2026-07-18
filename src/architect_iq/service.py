@@ -63,6 +63,28 @@ class EstimateService:
         repriced = recost(stored.graph, RateCard(rows))
         return self.repo.update(estimate_id, repriced)
 
+    def _build_graph(self, project_name, prd_text, context, match_override=None):
+        """Build a graph with memory-tuned priors; returns (graph, references)."""
+        context = context or ClientContext()
+        patterns, _ = data_loader.load_patterns()
+        past = self.repo.all_latest()
+
+        preview_matches = estimation.score_patterns(prd_text, context, patterns)
+        chosen_id = match_override or (preview_matches[0].pattern_id if preview_matches else None)
+        parametric_override = None
+        if chosen_id and chosen_id in patterns:
+            prior = tune_pattern_prior(chosen_id, patterns[chosen_id].parametric_cost, past, self._actuals)
+            if prior.sample_count > 0:
+                parametric_override = prior.as_parametric(patterns[chosen_id].parametric_cost)
+
+        rates, _ = self.active_rates()
+        graph = estimation.build_estimate(
+            project_name, prd_text, context,
+            match_override=match_override, parametric_override=parametric_override, rates=rates,
+        )
+        references = find_references(prd_text, context, graph.matched_pattern_ids, past)
+        return graph, references
+
     def create_estimate(
         self,
         project_name: str,
@@ -73,29 +95,7 @@ class EstimateService:
         opportunity_id: str | None = None,
     ) -> tuple[StoredEstimate, list[Reference]]:
         """Build with memory-tuned priors, persist, and return with references."""
-        context = context or ClientContext()
-        patterns, _ = data_loader.load_patterns()
-        past = self.repo.all_latest()
-
-        # First pass to know which pattern matched, so we can tune its prior.
-        preview_matches = estimation.score_patterns(prd_text, context, patterns)
-        chosen_id = match_override or (preview_matches[0].pattern_id if preview_matches else None)
-
-        parametric_override = None
-        if chosen_id and chosen_id in patterns:
-            prior = tune_pattern_prior(
-                chosen_id, patterns[chosen_id].parametric_cost, past, self._actuals
-            )
-            if prior.sample_count > 0:
-                parametric_override = prior.as_parametric(patterns[chosen_id].parametric_cost)
-
-        rates, _ = self.active_rates()
-        graph = estimation.build_estimate(
-            project_name, prd_text, context,
-            match_override=match_override, parametric_override=parametric_override,
-            rates=rates,
-        )
-        references = find_references(prd_text, context, graph.matched_pattern_ids, past)
+        graph, references = self._build_graph(project_name, prd_text, context, match_override)
         stored = self.repo.create(graph, owner_id=owner_id, opportunity_id=opportunity_id)
         # First estimate on an opportunity becomes its active/official one.
         if opportunity_id:
@@ -103,6 +103,30 @@ class EstimateService:
             if opp and not opp.active_estimate_id:
                 self.directory.set_active_estimate(opportunity_id, stored.estimate_id)
         return stored, references
+
+    def rebuild_estimate(
+        self,
+        estimate_id: str,
+        project_name: str,
+        prd_text: str,
+        context: ClientContext | None = None,
+        opportunity_id: str | None = None,
+    ) -> tuple[StoredEstimate, list[Reference]]:
+        """Re-derive an estimate from updated inputs and auto-save in place."""
+        if self.repo.get(estimate_id) is None:
+            raise KeyError(f"estimate {estimate_id!r} not found")
+        graph, references = self._build_graph(project_name, prd_text, context)
+        stored = self.repo.overwrite_latest(estimate_id, graph)
+        if opportunity_id:
+            self.repo.set_opportunity(estimate_id, opportunity_id)
+            opp = self.directory.get_opportunity(opportunity_id)
+            if opp and not opp.active_estimate_id:
+                self.directory.set_active_estimate(opportunity_id, estimate_id)
+        return stored, references
+
+    def clone_estimate(self, estimate_id: str, owner_id: str | None = None) -> StoredEstimate:
+        """Copy an estimate to test other assumptions (new estimate, not active)."""
+        return self.repo.clone(estimate_id, owner_id=owner_id)
 
     def share_principal_email(self, principal: str) -> str:
         """Resolve a share target given by email or by a known user's name."""

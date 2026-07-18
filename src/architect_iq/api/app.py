@@ -365,6 +365,34 @@ def recompute_estimate(estimate_id: str, overrides: RecomputeOverrides, user: Us
     return _to_response(saved.estimate_id, saved.version, saved.graph)
 
 
+@app.post("/api/estimates/{estimate_id}/rebuild", response_model=EstimateResponse)
+def rebuild_estimate(estimate_id: str, req: CreateEstimateRequestAuthed, user: User = Depends(get_current_user)) -> EstimateResponse:
+    """Auto-save: re-derive the estimate from updated inputs, in place (no new version)."""
+    _access_or_403(user, estimate_id, "edit")
+    if not req.prd_text.strip():
+        raise HTTPException(status_code=422, detail="prd_text is required")
+    try:
+        stored, references = service.rebuild_estimate(
+            estimate_id, req.project_name or "Untitled", req.prd_text, req.client_context, req.opportunity_id
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="estimate not found")
+    return _to_response(stored.estimate_id, stored.version, stored.graph, references)
+
+
+@app.post("/api/estimates/{estimate_id}/clone", response_model=EstimateResponse)
+def clone_estimate(estimate_id: str, user: User = Depends(get_current_user)) -> EstimateResponse:
+    """Clone an estimate to test other assumptions (new estimate, never active)."""
+    _access_or_403(user, estimate_id, "view")
+    if user.role is Role.CLIENT:
+        raise HTTPException(status_code=403, detail="clients cannot clone estimates")
+    try:
+        stored = service.clone_estimate(estimate_id, owner_id=user.id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="estimate not found")
+    return _to_response(stored.estimate_id, stored.version, stored.graph)
+
+
 @app.put("/api/estimates/{estimate_id}", response_model=EstimateResponse)
 def update_estimate(estimate_id: str, graph: SolutionGraph, user: User = Depends(get_current_user)) -> EstimateResponse:
     """Persist a fully edited graph as a new version (interactive editing)."""
