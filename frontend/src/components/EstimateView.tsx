@@ -114,11 +114,15 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
 
       <TagBar tags={g.tags ?? []} canEdit={canEdit} onChange={setTags} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-        <Stat label="Effort (P50)" value={mc ? pts(mc.effort_points.p50) : "—"} range={mc?.effort_points} fmt={pts} />
-        <Stat label="Duration (P50)" value={mc ? mc.duration_sprints.p50.toFixed(1) : "—"} sub="sprints" range={mc?.duration_sprints} fmt={(n) => `${n.toFixed(1)} spr`} />
-        {!oralsMode && <Stat label="Cost (P50)" value={mc ? money(mc.cost.p50) : "—"} range={mc?.cost} fmt={money} />}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-1">
+        <Stat label="Effort" value={mc ? pts(mc.effort_points.p50) : "—"} range={mc?.effort_points} fmt={pts} />
+        <Stat label="Duration" value={mc ? mc.duration_sprints.p50.toFixed(1) : "—"} sub="sprints" range={mc?.duration_sprints} fmt={(n) => `${n.toFixed(1)} spr`} />
+        {!oralsMode && <Stat label="Cost" value={mc ? money(mc.cost.p50) : "—"} range={mc?.cost} fmt={money} />}
       </div>
+      <p className="text-muted text-[11px] mt-1 mb-5">
+        Each number is the P50 (median) from the Monte Carlo simulation — the point where half of simulated
+        outcomes land above and half below. The range beneath it is the 80% confidence band (P10–P80).
+      </p>
 
       {/* Output panels — balanced masonry columns fill cohesively (no dead space); one column on mobile. */}
       <div className="columns-1 lg:columns-2 gap-5 [&>*]:break-inside-avoid">
@@ -190,9 +194,10 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-[13px]">
-                  <thead><tr className="text-muted"><th className={TH}>Scenario</th><th className={TH}>Effort P50</th><th className={TH}>Duration P50</th>{!oralsMode && <th className={TH}>Cost P50</th>}</tr></thead>
+                  <thead><tr className="text-muted"><th className={TH}>Scenario</th><th className={TH}>Effort</th><th className={TH}>Duration</th>{!oralsMode && <th className={TH}>Cost</th>}</tr></thead>
                   <tbody>{scenarios.map((s) => (<tr key={s.scenario.id}><td className={TD}>{s.scenario.name}<div className="text-muted text-[11px]">{s.assumptions[0]}</div></td><td className={TD}>{pts(s.effort_points.p50)}</td><td className={TD}>{s.duration_sprints.p50.toFixed(1)} spr</td>{!oralsMode && <td className={TD}>{money(s.cost.p50)}</td>}</tr>))}</tbody>
                 </table>
+                <p className="text-muted text-[11px] mt-1.5 mb-0">Figures are each scenario's P50 (median) estimate.</p>
               </div>
             )}
           </Section>
