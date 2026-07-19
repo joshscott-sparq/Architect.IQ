@@ -5,7 +5,7 @@ import type { EstimateSummary } from "../types";
 const money = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-export function EstimatesList({ onOpen }: { onOpen: (id: string) => void }) {
+export function EstimatesList({ onOpen, seeding = false }: { onOpen: (id: string) => void; seeding?: boolean }) {
   const [items, setItems] = useState<EstimateSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,6 +15,17 @@ export function EstimatesList({ onOpen }: { onOpen: (id: string) => void }) {
 
   if (error) return <div className="text-brand-orange-deep text-[13px]">{error}</div>;
   if (!items) return <div className="text-muted text-sm">Loading…</div>;
+
+  if (items.length === 0 && seeding)
+    return (
+      <div className="card text-center py-10">
+        <h3 className="font-semibold mb-1">Loading demo data…</h3>
+        <p className="text-muted">
+          Seeding sample estimates — near-instant, or up to ~1-2 minutes if a live AI
+          model key is configured (each estimate calls it). This page updates automatically.
+        </p>
+      </div>
+    );
 
   if (items.length === 0)
     return (

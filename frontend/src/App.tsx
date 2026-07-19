@@ -35,6 +35,7 @@ export default function App() {
   const [nonce, setNonce] = useState(0);
   const [ctxCollapsed, setCtxCollapsed] = useState(() => localStorage.getItem("aiq_ctx_collapsed") === "1");
   const [demoError, setDemoError] = useState<string | null>(null);
+  const [demoSeeding, setDemoSeeding] = useState(false);
   const demoTried = useRef(false);
 
   function toggleCtx() {
@@ -44,10 +45,12 @@ export default function App() {
   useEffect(() => {
     if (!DEMO_MODE || demoTried.current || loading || user) return;
     demoTried.current = true;
+    setDemoSeeding(true);
     login("admin@architect.iq", "admin123")
       .then(() => api.seedDemo())
       .then(() => setListKey((k) => k + 1))
-      .catch(() => setDemoError("Couldn't reach the backend on :8000. Start it first (see README Quick start), then reload."));
+      .catch(() => setDemoError("Couldn't reach the backend on :8000. Start it first (see README Quick start), then reload."))
+      .finally(() => setDemoSeeding(false));
   }, [loading, user]);
 
   if (SHARED_MATCH) return <SharedPage token={SHARED_MATCH[1]} />;
@@ -131,7 +134,7 @@ export default function App() {
 
       <main className={"max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 " + (view === "view" && current ? (ctxCollapsed ? "pb-24" : "pb-[46vh]") : "pb-16")}>
         {view === "new" && !isClient && <NewEstimate onOpen={open} />}
-        {view === "list" && <EstimatesList key={listKey} onOpen={open} />}
+        {view === "list" && <EstimatesList key={listKey} onOpen={open} seeding={demoSeeding} />}
         {view === "opps" && <OpportunitiesList onOpen={(id) => { setOppId(id); setView("opp"); }} />}
         {view === "opp" && oppId && <OpportunityView id={oppId} onOpenEstimate={open} />}
         {view === "rates" && !isClient && <RatesView />}
