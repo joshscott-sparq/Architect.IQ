@@ -162,3 +162,88 @@ runs fully without a key (`ARCHITECTIQ_DISABLE_LLM=1` forces the fallback path e
 a key present) — tests set `use_llm=False` explicitly rather than relying on the key
 being absent in the test environment (see `tests/conftest.py`, which also deletes
 `ANTHROPIC_API_KEY` from the environment for API-level tests).
+
+## Next steps: development plan toward "fully functional"
+
+Reviewed 2026-07-18 against the actual code (not just DECISIONS.md, which has drifted —
+see the first item below). Ordered by what blocks correctness/production use first;
+the last two tiers are ongoing maturity work, not one-time fixes.
+
+### 1. Correctness fixes (small, high-value)
+
+- **Prior-tuning can tune the wrong pattern's prior.** `service._build_graph()` picks
+  which pattern's prior to tune via `estimation.score_patterns()` — the deterministic
+  signal-overlap matcher only. But the graph itself is built by `estimation.build_estimate()`,
+  whose internal `_rank_patterns()` uses the real LLM matcher when available and can
+  disagree with the deterministic preview. When they disagree, memory tunes the prior
+  for a pattern that isn't the one actually used. Fix: have `_build_graph()` build the
+  graph first, then tune priors for the pattern it actually matched.
+- **`DECISIONS.md` D11 ("known skeleton gaps") is stale.** It lists requirement
+  extraction, capability derivation, and LLM pattern matching as not-yet-wired — all
+  three are implemented and tested (`core/llm.py`, wired through `core/estimation.py`,
+  covered by `tests/test_llm.py`). The engineer-count/cost gap it describes was also
+  fixed (see `core/velocity.py`'s "D11 fix" reference). Reconcile or close D11 so it
+  doesn't mislead the next person into re-solving solved problems.
+- **`seed_demo()` isn't concurrency-safe** — two overlapping `POST /api/demo/seed`
+  calls can double-create demo estimates (see CLAUDE.md's Demo mode section above). A
+  background task for this was already spawned; confirm it landed before closing.
+- **Dangling CLI entry point.** `pyproject.toml`'s `[project.scripts] architectiq =
+  "architect_iq.agent.cli:main"` points at a module that doesn't exist — `pip install -e .`
+  ships a console script that crashes on invocation. Either remove the entry point until
+  a real CLI is built, or build a minimal one (see tier 3).
+
+### 2. Production hardening
+
+- **No CI.** No `.github/workflows` (or equivalent) runs the backend pytest suite or
+  frontend typecheck/build on a PR. Add one before this has more than one contributor.
+- **No login rate limiting.** `POST /api/auth/login` (`api/app.py`) has no
+  attempt-throttling or lockout — brute-forceable as-is. Needed before any non-local
+  deployment.
+- **Startup only warns, doesn't fail, on insecure defaults.** Missing
+  `ARCHITECTIQ_SECRET` / `ARCHITECTIQ_ADMIN_PASSWORD` log a `UserWarning` (see
+  `auth/security.py`, `persistence/directory.py`) but the app still starts with the dev
+  secret and default admin password. Consider a hard failure when
+  `ARCHITECTIQ_ENV=production` (or similar) is set.
+- **SQLite → Postgres path is asserted, not built.** README calls this "the
+  multi-instance path" behind the same repository interfaces, but no Postgres
+  implementation of `EstimateRepository` / `SQLiteDirectoryRepository` /
+  `SQLiteRateCardRepository` exists yet. Needed before running more than one backend
+  instance.
+
+### 3. Feature completeness (README's "Not yet built", confirmed still true)
+
+- **No xlsx/summary emitters.** `emit/` only has `mermaid.py` (the architecture
+  diagram). No SOW-ready doc/spreadsheet export of an estimate exists.
+- **Salesforce is ID-linkage only.** `Opportunity.sf_account_id` /
+  `sf_opportunity_id` are stored strings with no live Salesforce API client —
+  unlike Notion (`integrations/notion.py`), which has a real fetch path behind
+  `NOTION_API_KEY`. Decide if live Salesforce sync is in scope; if so, mirror the
+  Notion module's key-gated-with-fallback pattern.
+- **External Sources data pull is fully stubbed** (D22) beyond Notion — GitHub,
+  SpecKit, Slack connections show status but don't pull data yet.
+- **Claude skill wrapper** (README) — not started.
+- **Team composition re-shaping on recost is limited** (D13): `POST
+  /api/estimates/{id}/recost` reprices the existing fixed team under a new rate
+  card, but changing tier/location *mix* (not just re-pricing the same roles) is
+  still a noted-for-later lever.
+
+### 4. Calibration maturity (ongoing — memory loop exists, needs real volume)
+
+- Pattern parametric costs (`data/patterns.yaml`) are starter calibration; they
+  self-tune via `memory/priors.py` as real estimates + recorded actuals
+  (`ActualOutcome`) accumulate, but there isn't yet enough delivered-engagement
+  volume to trust the tuned numbers over the starting defaults.
+- AI Tier `ai_boost`/`effort_multiplier` values (D23) are an explicit first-pass
+  heuristic pending real per-tier delivery actuals to recalibrate against.
+- Several workbook-derived constants (`PesWeight` D3, `AvgStoryPts` D4, complexity
+  factor severity curves D5, factor family count D6) are seeded defaults explicitly
+  flagged to the product owner and not yet resolved — see each decision entry for
+  what's needed to close it.
+
+### 5. Testing gaps
+
+- **No frontend test automation.** `frontend/` has `tsc -b` (typecheck) and manual
+  browser verification only — no component tests (Vitest/RTL) or E2E (Playwright).
+  Backend has solid pytest coverage; frontend logic (Context Panel auto-recalc
+  debounce, AI Tier picker, scenario tables) is currently only regression-tested by
+  hand.
