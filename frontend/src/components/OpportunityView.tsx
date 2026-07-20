@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 
 const money = (n?: number | null) =>
   n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-export function OpportunityView({ id, onOpenEstimate }: { id: string; onOpenEstimate: (estimateId: string) => void }) {
+export function OpportunityView({ id, onOpenEstimate, canCreate = true }: {
+  id: string;
+  onOpenEstimate: (estimateId: string) => void;
+  canCreate?: boolean;
+}) {
+  const navigate = useNavigate();
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getOpportunity>> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,10 +25,18 @@ export function OpportunityView({ id, onOpenEstimate }: { id: string; onOpenEsti
 
   return (
     <div>
+      <nav className="text-[13px] text-muted mb-3">
+        <Link to="/" className="hover:text-brand-orange">Opportunities</Link>
+        <span className="mx-1.5">/</span>
+        <span className="text-ink font-medium">{opportunity.name}</span>
+      </nav>
       <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <h1 className="m-0 text-[22px] font-bold">{opportunity.name}</h1>
+        <h1 className="m-0 text-[22px] font-bold flex-1">{opportunity.name}</h1>
         {account && <span className="badge bg-brand-mint text-brand-sage">{account.name}</span>}
         {opportunity.sf_opportunity_id && <span className="badge bg-orange-100 text-brand-orange">SF {opportunity.sf_opportunity_id}</span>}
+        {canCreate && (
+          <button className="btn btn-primary text-[13px]" onClick={() => navigate(`/new?opportunity=${id}`)}>+ New estimate</button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

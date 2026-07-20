@@ -8,6 +8,7 @@ import { EstimatePage } from "./components/EstimatePage";
 import { EstimatesList } from "./components/EstimatesList";
 import { RatesView } from "./components/RatesView";
 import { AdminView } from "./components/AdminView";
+import { SettingsLayout } from "./components/Settings";
 import { OpportunityView } from "./components/OpportunityView";
 import { OpportunitiesList } from "./components/OpportunitiesList";
 import { Login } from "./components/Login";
@@ -21,10 +22,10 @@ function SharedRoute() {
   return <SharedPage token={token!} />;
 }
 
-function OpportunityRoute() {
+function OpportunityRoute({ canCreate }: { canCreate: boolean }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  return <OpportunityView id={id!} onOpenEstimate={(estId) => navigate(`/estimates/${estId}`)} />;
+  return <OpportunityView id={id!} canCreate={canCreate} onOpenEstimate={(estId) => navigate(`/estimates/${estId}`)} />;
 }
 
 export default function App() {
@@ -70,11 +71,9 @@ export default function App() {
   const isEstimatePage = location.pathname.startsWith("/estimates/");
 
   const nav: { to: string; label: string; show: boolean; end?: boolean }[] = [
-    { to: "/", label: "Estimates", show: true, end: true },
-    { to: "/new", label: "New estimate", show: !isClient },
-    { to: "/opportunities", label: "Opportunities", show: true },
-    { to: "/rates", label: "Rates", show: !isClient },
-    { to: "/admin", label: "Admin", show: isAdmin },
+    { to: "/", label: "Opportunities", show: true, end: true },
+    { to: "/estimates", label: "Estimates", show: true },
+    { to: "/settings", label: "Settings", show: !isClient },
   ];
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     "px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap " +
@@ -127,13 +126,18 @@ export default function App() {
 
       <main className={"max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 " + (isEstimatePage ? (ctxCollapsed ? "pb-24" : "pb-[46vh]") : "pb-16")}>
         <Routes>
-          <Route path="/" element={<EstimatesList key={listKey} onOpen={(id) => navigate(`/estimates/${id}`)} seeding={demoSeeding} />} />
-          {!isClient && <Route path="/new" element={<NewEstimate onOpen={(id) => navigate(`/estimates/${id}`)} />} />}
+          <Route path="/" element={<OpportunitiesList key={listKey} onOpen={(id) => navigate(`/opportunities/${id}`)} seeding={demoSeeding} canCreate={!isClient} />} />
+          <Route path="/opportunities/:id" element={<OpportunityRoute canCreate={!isClient} />} />
+          <Route path="/estimates" element={<EstimatesList key={listKey} onOpen={(id) => navigate(`/estimates/${id}`)} seeding={demoSeeding} />} />
           <Route path="/estimates/:id" element={<EstimatePage isClient={isClient} ctxCollapsed={ctxCollapsed} onToggleCtx={toggleCtx} />} />
-          <Route path="/opportunities" element={<OpportunitiesList onOpen={(id) => navigate(`/opportunities/${id}`)} />} />
-          <Route path="/opportunities/:id" element={<OpportunityRoute />} />
-          {!isClient && <Route path="/rates" element={<RatesView />} />}
-          {isAdmin && <Route path="/admin" element={<AdminView />} />}
+          {!isClient && <Route path="/new" element={<NewEstimate onOpen={(id) => navigate(`/estimates/${id}`)} />} />}
+          {!isClient && (
+            <Route path="/settings" element={<SettingsLayout isAdmin={isAdmin} />}>
+              <Route index element={<Navigate to="rates" replace />} />
+              <Route path="rates" element={<RatesView />} />
+              {isAdmin && <Route path="admin" element={<AdminView />} />}
+            </Route>
+          )}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

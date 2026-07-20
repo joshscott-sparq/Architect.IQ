@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import type { EstimateResponse } from "../types";
 import { MermaidDiagram } from "./MermaidDiagram";
@@ -13,8 +14,9 @@ function splitList(s: string): string[] {
 // Live editor: builds/updates the estimate automatically from whatever's entered
 // and auto-saves in place — no "Generate" button.
 export function NewEstimate({ onOpen }: { onOpen: (id: string) => void }) {
+  const [searchParams] = useSearchParams();
   const [projectName, setProjectName] = useState("");
-  const [opportunityId, setOpportunityId] = useState("");
+  const [opportunityId, setOpportunityId] = useState(() => searchParams.get("opportunity") ?? "");
   const [opps, setOpps] = useState<{ id: string; name: string }[]>([]);
   const [prd, setPrd] = useState("");
   const [tech, setTech] = useState("");
