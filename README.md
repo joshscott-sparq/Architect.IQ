@@ -219,6 +219,11 @@ cd frontend && npm ci && npm run build
 Serve `frontend/dist/` from any static host (S3+CloudFront, Nginx, Netlify, etc.),
 or with `npm run prod` for a local production preview. Point the frontend's `/api`
 at the backend (reverse-proxy `/api` to the backend host, or set an API base URL).
+The app uses client-side routing (react-router), so the host must fall back to
+`index.html` for unknown paths (e.g. a direct load of `/estimates/abc123`) — a
+CloudFront custom error response, Nginx `try_files ... /index.html`, or Netlify's
+`_redirects` `/* /index.html 200`, depending on host. `npm run prod`'s `vite
+preview` does this automatically.
 
 **2. Run the backend** (no `--reload` in production; use multiple workers):
 
