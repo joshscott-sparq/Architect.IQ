@@ -1,0 +1,164 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Architect.IQ: an agentic estimation and solutioning engine for Sparq. Takes a PRD plus
+client context and produces a reference architecture, effort estimate, cost model, and
+deal-shaping scenarios. Standalone full-stack app — FastAPI backend (`src/architect_iq/`)
++ React/TypeScript/Tailwind frontend (`frontend/`) — not a library or CLI tool, despite
+the `architectiq` console script stub in `pyproject.toml` (not yet implemented; see
+DECISIONS.md D11).
+
+`DECISIONS.md` is the log of every non-obvious judgment call made building this (why
+things are the way they are, what was explicitly flagged to the product owner and not
+yet resolved). Read it before assuming something is a bug rather than a deliberate
+tradeoff, and add an entry there — not just a code comment — for future non-obvious
+calls of your own.
+
+## Commands
+
+Run both processes with one command from the repo root:
+
+```bash
+./dev.sh          # normal app: backend :8000 + frontend :5173
+./dev.sh demo     # demo mode: auto-login as admin, sample data
+```
+
+It creates `.venv` and installs both sets of dependencies on first run if missing.
+Manual equivalent (two terminals, backend first) is in the README Quick start.
+
+Backend tests (from repo root; `pythonpath`/`testpaths` are set in `pyproject.toml`):
+
+```bash
+.venv/bin/python -m pytest -q                              # full suite
+.venv/bin/python -m pytest tests/test_scenarios.py -q       # one file
+.venv/bin/python -m pytest tests/test_scenarios.py::test_default_scenarios_span_models -q  # one test
+```
+
+Frontend typecheck/build (from `frontend/`):
+
+```bash
+npx tsc -b            # typecheck only
+npm run build          # typecheck + vite build
+npm run prod            # build + preview on :4173
+```
+
+No linter is configured for either side (no ruff/eslint config in the repo).
+
+## Architecture
+
+### The Solution Graph is the one central object
+
+Every artifact (reference architecture, effort estimate, cost model, team plan) is a
+projection of a single `SolutionGraph` (`models/solution_graph.py`):
+`requirements → capabilities → components → work items → effort → team → cost`, plus
+`context_panel`, `complexity_factors`, `scenarios`, `matched_pattern_ids`,
+`deterministic`/`monte_carlo`/`reconciliation` results, and `assumptions`. Change one
+node and every downstream projection (diagram, cost, timeline) is rebuilt from it — this
+is why there's no "Generate" button in the UI; editing context just rebuilds the graph.
+(D8: this replaced an earlier flat `EstimateModel`; the legacy calibration workbook is a
+reference for defaults, not a contract the math must replicate exactly — D8, D10.)
+
+`SolutionGraph`s are versioned: every edit persists as a new version via
+`persistence/store.py` (`SQLiteEstimateRepository`), except the Context Panel's
+auto-recalc which overwrites the latest version in place (`overwrite_latest` — D22) so
+live editing doesn't spam versions. Deliberate actions (recompute knobs, scenario
+compute, re-cost) do snapshot a new version.
+
+### Build pipeline (`service.py` → `core/estimation.py`)
+
+`EstimateService._build_graph()` is the one path that constructs a graph, used by
+`create_estimate`, `rebuild_estimate`, and `recalculate_from_context`:
+
+1. `core/matcher.py` scores the PRD + `ClientContext` against the pattern library
+   (`data/patterns.yaml`) to pick a reference architecture (RAG-on-Databricks, .NET
+   modernization, agentic-on-MCP, …).
+2. `memory/priors.py` tunes that pattern's parametric cost from past estimates +
+   recorded actuals (`ActualOutcome`) before the graph is built — this is "memory
+   improves the next estimate," not a separate offline step.
+3. `core/estimation.py::build_estimate()` instantiates the pattern into components/work
+   items, derives capabilities (LLM or 1:1 heuristic fallback), decomposes large
+   features into stories, applies `core/factors.py` complexity/risk factors (from
+   context + the Context Panel's Risks tab — factors from Risks entries carry
+   `family="Risk: ..."`) to `core/velocity.py` (sub-linear team scaling, D11 fix), and
+   reconciles top-down parametric vs bottom-up rollup into a confidence-weighted blend.
+   Monte Carlo (`core/montecarlo.py`, PERT-beta + a correlated systemic-risk factor)
+   produces P10/P50/P80/P90 ranges, recentered on the blend.
+4. `memory/retrieval.py` finds reference-class estimates to surface in the UI.
+
+`core/recompute.py` (deal-shaping knobs: AI Tier boost, engineer count, allocations) and
+`core/scenarios.py` (named staffing/dev-model comparisons) both recompute velocity/cost
+against the *same fixed work breakdown* — they never re-match or re-size, only move the
+levers. `core/advisor.py` layers cheaper/faster suggestions + deferral candidates on top
+of the scenario engine, grounded in reference-class history.
+
+### Data is versioned YAML, not code
+
+`src/architect_iq/data/*.yaml` (patterns, complexity factors, t-shirt scale, variables,
+dev models / AI Tiers, pricing) are loaded by `data_loader.py` and cached
+(`@lru_cache`). Adding or tuning a pattern, factor, or AI Tier is a data edit, not a code
+change — see `dev_models.yaml`'s comment header and D23 for how the 5-tier AI Tier
+ladder (human:AI-agent ratio, `ai_boost`/`effort_multiplier` per tier) plugs into
+`core/scenarios.py` and `core/advisor.py` purely through that data file's keys.
+Real pricing is never committed: `data/pricing.local.yaml` (gitignored) overrides the
+committed placeholder `pricing.example.yaml`; `data/SCHEMA.md` documents the format.
+
+### Context Panel drives the estimate, not the other way around
+
+`models/context.py`'s `ContextPanel` (Requirements/Phases/Risks/Accelerators/
+Assumptions/External Sources) lives on the `SolutionGraph`. `PUT
+/api/estimates/{id}/context` → `service.recalculate_from_context()` rebuilds the PRD
+from Requirements entries (falling back to the graph's existing requirements if none),
+feeds risks/accelerators/assumptions/phases through `build_estimate()`, and saves in
+place — this is the auto-recalc the frontend debounces on every keystroke (D22).
+
+### Auth, domain model, persistence
+
+Domain: `Account → Opportunity → Estimate` (one active/official estimate per
+opportunity; other versions/clones are non-active). Three roles enforced in
+`auth/access.py`: Admin (everything), User (own + shared; memory/training uses *all*
+history regardless of ownership), Client (read-only on assigned opportunities). JWT
+(HS256) local auth now; Google SSO and JumpCloud drop in via the same OIDC-ready seam
+(`auth/oidc.py`). Sharing (view/comment/edit by email or name), public view-only links,
+and comments are directory-level concerns in `persistence/directory.py`
+(`SQLiteDirectoryRepository`) — separate from `persistence/store.py`'s estimate
+versioning and `persistence/rate_cards.py`'s rate-card management (multiple saved cards,
+one active + one default).
+
+All three persistence repos share one SQLite file (`ARCHITECTIQ_DB`, default
+`architect_iq.db`) — swappable to Postgres behind the same repository interfaces if
+needed (README notes this as the multi-instance path).
+
+### Demo mode
+
+Gated by Vite mode, not a runtime toggle: `npm run demo` (`vite --mode demo`) loads
+`.env.demo` → `VITE_DEMO_MODE=true` (D12) — this is invisible in `dev`/`prod`, so demo
+data/UI never leaks there. `App.tsx`'s bootstrap effect (gated by a `demoTried` ref, not
+just component state) auto-logs in as admin and calls `POST /api/demo/seed` once.
+`demo.py::seed_demo()` is idempotent by project name across separate calls but **not
+concurrency-safe** — two overlapping seed calls (e.g., two tabs open before the first
+finishes) can race past each other's idempotency check and double-create scenarios; this
+is a known gap, not yet fixed. Seeding calls the real LLM per sample estimate when
+`ANTHROPIC_API_KEY` is set (can take ~1-2 min); the frontend shows a "Loading demo
+data…" state during that window rather than a misleading empty list.
+
+### Frontend shape
+
+`App.tsx` is the shell: auth gate, role-aware hamburger nav, and the three-zone layout —
+header, main output (`EstimateView.tsx`, masonry-column `Section`s that expand to a
+full-screen `Modal.tsx`), and the bottom-docked collapsible `ContextPanel.tsx`. `api.ts`
+is the single fetch client (bearer token from `localStorage`); `types.ts` mirrors the
+backend Pydantic models by hand (no codegen — keep them in sync manually when backend
+response shapes change).
+
+## Working with the LLM layer
+
+`core/llm.py` / `core/vision.py` wrap the Anthropic SDK for requirement extraction,
+capability derivation, nuanced pattern matching, image/diagram vision, and the advisor's
+team-model suggestions. Every one of these has a deterministic heuristic fallback and
+runs fully without a key (`ARCHITECTIQ_DISABLE_LLM=1` forces the fallback path even with
+a key present) — tests set `use_llm=False` explicitly rather than relying on the key
+being absent in the test environment (see `tests/conftest.py`, which also deletes
+`ANTHROPIC_API_KEY` from the environment for API-level tests).
