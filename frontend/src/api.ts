@@ -1,4 +1,4 @@
-import type { AiTier, EstimateResponse, EstimateSummary, Pattern } from "./types";
+import type { AiTier, EstimateResponse, EstimateSummary, Graph, Pattern } from "./types";
 
 // --- Token store (bearer, persisted) ---
 const TOKEN_KEY = "aiq_token";
@@ -83,6 +83,8 @@ export const api = {
     opportunity_id?: string | null;
   }) => http<EstimateResponse>(`/api/estimates/${id}/rebuild`, jsonBody(body)),
   cloneEstimate: (id: string) => http<EstimateResponse>(`/api/estimates/${id}/clone`, { method: "POST" }),
+  updateGraph: (id: string, graph: Graph) =>
+    http<EstimateResponse>(`/api/estimates/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(graph) }),
   setTags: (id: string, tags: string[]) => http<EstimateResponse>(`/api/estimates/${id}/tags`, jsonBody({ tags })),
   saveContext: (id: string, panel: import("./types").ContextPanel) =>
     http<EstimateResponse>(`/api/estimates/${id}/context`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(panel) }),

@@ -56,6 +56,31 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D24. Estimate work breakdown is a directly hand-editable grid; complexity factors merged into Risks as read-only
+**Call:** The "Estimate (work breakdown)" section is now a full CRUD grid
+(Level/Epic/Feature/Story/Points R-O-P/Phase/Practice, add/remove rows) that
+saves via the existing generic `PUT /api/estimates/{id}` (`update_estimate`,
+new version each save) rather than the Context Panel's auto-recalc path — edits
+here are direct hand-edits to the work breakdown itself, not context that
+regenerates it, so they shouldn't be silently overwritten by the next
+requirements-driven rebuild. `WorkItem` gained a `phase_id` field (nullable, no
+migration needed) so a row can link to a Context Panel Phase; the dropdown
+lists `context_panel.phases`. New rows default to story level with placeholder
+text and a manually-flagged `CureAssessment`/`extraction_confidence=1.0` since
+those fields are otherwise populated by the extraction pipeline. Complexity
+factors, by contrast, stayed read-only and moved into the Context Panel's Risks
+tab (a block above the Risks grid) rather than becoming editable — they're
+derived output of `core/factors.py::derive_factors()` from context/risks, not
+raw user input, so true CRUD doesn't apply to them the way it does to a
+hand-entered risk or a work-item row.
+**Why:** Owner pointed at the legacy Cutsforth workbook's `Estimates` tab
+(Epic/Feature/Story/Points/Phase/Practice grid) as the missing piece — the app
+produced every downstream artifact (cost, team, timeline) but never surfaced
+the line-item breakdown itself for review or hand-tuning, and asked
+specifically for Epic/Feature/Story-level estimation with a Phase link. Ref
+CLAUDE.md's Solution Graph section (WorkItem = "one row of the Estimates
+grid").
+
 ## D23. AI Tiers replace the 3-model dev-model library
 **Call:** Replaced the old 3-key dev-model library (traditional/ai-assisted/
 agentic) with a 5-tier AI Tier ladder (`tier-1`..`tier-5`), each carrying a

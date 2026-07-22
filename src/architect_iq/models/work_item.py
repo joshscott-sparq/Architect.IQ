@@ -76,6 +76,9 @@ class WorkItem(BaseModel):
     parent_id: str | None = Field(
         default=None, description="Parent row id (flat hierarchy for Gantt)."
     )
+    phase_id: str | None = Field(
+        default=None, description="Context Panel phase this item belongs to, if any."
+    )
 
     tshirt: TShirtSize | None = Field(
         default=None, description="Assigned t-shirt size (§2.2)."

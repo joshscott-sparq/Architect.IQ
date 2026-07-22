@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSource, Reference } from "../types";
+import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSource, LinkedFactor, Reference } from "../types";
 
 let _seq = 0;
 const uid = () => `e${Date.now().toString(36)}${_seq++}`;
@@ -8,7 +8,7 @@ const uid = () => `e${Date.now().toString(36)}${_seq++}`;
 const ENTRY_TABS = [
   { key: "requirements", label: "Requirements", scoped: false, hint: "What's being built — a PRD, feature list, or notes." },
   { key: "phases", label: "Phases", scoped: false, hint: "Stages of the effort (Discovery, MVP, V1)." },
-  { key: "risks", label: "Risks", scoped: true, hint: "Facts that could slow the effort down." },
+  { key: "risks", label: "Risks", scoped: true, hint: "Facts that could slow the effort down — plus the complexity factors they (and other context) derive." },
   { key: "accelerators", label: "Accelerators", scoped: true, hint: "Facts that speed the effort up." },
   { key: "assumptions", label: "Assumptions", scoped: true, hint: "Things the estimate assumes to be true." },
   { key: "reference", label: "Reference Estimates", scoped: false, hint: "Similar past estimates surfaced from memory." },
@@ -29,10 +29,11 @@ function withSparqOS(panel: Panel): Panel {
   return { ...panel, external_sources: [sparqos, ...panel.external_sources] };
 }
 
-export function ContextPanel({ estimateId, initial, references, canEdit, onRecalc, collapsed, onToggle }: {
+export function ContextPanel({ estimateId, initial, references, complexityFactors, canEdit, onRecalc, collapsed, onToggle }: {
   estimateId: string;
   initial: Panel;
   references: Reference[];
+  complexityFactors: LinkedFactor[];
   canEdit: boolean;
   onRecalc: (e: EstimateResponse) => void;
   collapsed: boolean;
@@ -119,6 +120,7 @@ export function ContextPanel({ estimateId, initial, references, canEdit, onRecal
                 phases={panel.phases}
                 canEdit={canEdit}
                 onAdd={addEntry} onRemove={removeEntry} onScope={setScope} onEdit={editContent}
+                complexityFactors={tab === "risks" ? complexityFactors : undefined}
               />
             )}
             {tab === "phases" && <PhasesTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
@@ -135,7 +137,7 @@ const SINGULAR: Record<string, string> = {
   requirements: "a requirement", risks: "a risk", accelerators: "an accelerator", assumptions: "an assumption",
 };
 
-function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope, onEdit }: any) {
+function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope, onEdit, complexityFactors }: any) {
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [urlMode, setUrlMode] = useState(false);
@@ -254,6 +256,19 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
         </div>
       )}
       <p className="text-muted text-[12px] mt-2 mb-3">{hint}</p>
+
+      {complexityFactors && complexityFactors.filter((f: LinkedFactor) => !f.family.startsWith("Risk: ")).length > 0 && (
+        <div className="mb-3 border border-line rounded-xl overflow-hidden">
+          <div className="bg-canvas px-2.5 py-1.5 text-[11px] uppercase text-muted font-semibold">Complexity factors — derived from context, not editable here</div>
+          {complexityFactors.filter((f: LinkedFactor) => !f.family.startsWith("Risk: ")).map((f: LinkedFactor, i: number) => (
+            <div key={i} className="flex items-center gap-2 text-[13px] py-1.5 px-2.5 border-t border-line">
+              <span className="flex-1">{f.family}</span>
+              <span className="badge bg-brand-mint text-brand-sage">{f.severity}</span>
+              <span className="text-brand-orange-deep font-semibold w-12 text-right">{f.impact.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <p className="text-muted text-[13px]">Nothing here yet.</p>

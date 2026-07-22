@@ -89,10 +89,16 @@ export interface WorkItem {
   feature?: string | null;
   story?: string | null;
   parent_id?: string | null;
+  phase_id?: string | null;
   points: ThreePoint;
   practice?: string | null;
   discipline?: string | null;
   tshirt?: string | null;
+  cure?: {
+    complexity: number; unknowns: number; risks: number; effort: number;
+    rationale: string; confidence: number;
+  };
+  linked_factors?: LinkedFactor[];
   extraction_confidence: number;
 }
 
