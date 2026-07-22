@@ -65,6 +65,7 @@ export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
         key={current.estimate_id}
         estimateId={current.estimate_id}
         initial={current.graph.context_panel ?? EMPTY_PANEL}
+        references={current.references}
         canEdit={access.can_edit}
         collapsed={ctxCollapsed}
         onToggle={onToggleCtx}

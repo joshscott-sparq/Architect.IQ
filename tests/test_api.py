@@ -55,6 +55,25 @@ def test_create_get_recompute_flow(client):
     assert baseline_cost >= 0
 
 
+def test_get_estimate_includes_references_not_just_create(client):
+    """GET (opening an existing estimate) must return reference-class matches
+    too, not just the create response - they aren't persisted on the graph."""
+    client.post("/api/estimates", json={
+        "project_name": "Prior RAG", "prd_text": RAG_PRD,
+        "client_context": {"tech_stack": ["Databricks", "Python"]},
+    })
+    created = client.post("/api/estimates", json={
+        "project_name": "New RAG", "prd_text": RAG_PRD,
+        "client_context": {"tech_stack": ["Databricks"]},
+    }).json()
+    eid = created["estimate_id"]
+    assert created["references"], "create response should include references"
+
+    got = client.get(f"/api/estimates/{eid}").json()
+    assert got["references"], "GET must recompute references too, not return empty"
+    assert got["references"][0]["project_name"] == "Prior RAG"
+
+
 def test_create_requires_prd(client):
     resp = client.post("/api/estimates", json={"project_name": "x", "prd_text": "   "})
     assert resp.status_code == 422

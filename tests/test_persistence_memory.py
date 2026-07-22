@@ -37,6 +37,20 @@ def test_retrieval_finds_same_pattern(tmp_path):
     assert "same pattern" in refs[0].why
 
 
+def test_get_references_recomputes_on_open_not_just_create(tmp_path):
+    """References aren't persisted on the graph — simply opening an estimate
+    later must recompute them fresh, not just the moment it's created."""
+    svc = EstimateService(repo=SQLiteEstimateRepository(tmp_path / "t.db"))
+    svc.create_estimate("Prior RAG", RAG_PRD, ClientContext(tech_stack=["Databricks", "Python"]))
+    stored, _ = svc.create_estimate("New RAG", RAG_PRD, ClientContext(tech_stack=["Databricks"]))
+
+    refs = svc.get_references(stored.estimate_id)
+    assert refs, "expected reference-class matches when reopening later"
+    assert refs[0].project_name == "Prior RAG"
+    # The estimate never references itself.
+    assert all(r.estimate_id != stored.estimate_id for r in refs)
+
+
 def test_prior_tuning_shrinks_toward_observed(tmp_path):
     repo = SQLiteEstimateRepository(tmp_path / "t.db")
     svc = EstimateService(repo=repo)

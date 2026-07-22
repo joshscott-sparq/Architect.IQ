@@ -165,6 +165,18 @@ class EstimateService:
     def get_estimate(self, estimate_id: str, version: int | None = None) -> StoredEstimate | None:
         return self.repo.get(estimate_id, version)
 
+    def get_references(self, estimate_id: str, version: int | None = None) -> list[Reference]:
+        """Reference-class matches for an existing estimate, recomputed fresh
+        (not persisted on the graph) so simply opening an estimate shows them,
+        not just the moment right after it was created or recalculated."""
+        stored = self.repo.get(estimate_id, version)
+        if stored is None:
+            return []
+        graph = stored.graph
+        prd_text = "\n".join(f"- {r.text}" for r in graph.requirements)
+        past = [s for s in self.repo.all_latest() if s.estimate_id != estimate_id]
+        return find_references(prd_text, graph.client_context, graph.matched_pattern_ids, past)
+
     def update_estimate(self, estimate_id: str, graph: SolutionGraph) -> StoredEstimate:
         """Persist an edited graph as a new version (interactive editing)."""
         return self.repo.update(estimate_id, graph)

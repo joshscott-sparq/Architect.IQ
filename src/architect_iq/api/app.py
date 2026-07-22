@@ -389,7 +389,7 @@ def get_estimate(estimate_id: str, version: int | None = None, user: User = Depe
     stored = service.get_estimate(estimate_id, version)
     if stored is None:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored)
+    return _to_response(stored, service.get_references(estimate_id, version))
 
 
 @app.post("/api/estimates/{estimate_id}/recompute", response_model=EstimateResponse)
@@ -401,7 +401,7 @@ def recompute_estimate(estimate_id: str, overrides: RecomputeOverrides, user: Us
         raise HTTPException(status_code=404, detail="estimate not found")
     updated_graph = recompute(stored.graph, overrides)
     saved = service.update_estimate(estimate_id, updated_graph)
-    return _to_response(saved)
+    return _to_response(saved, service.get_references(estimate_id))
 
 
 @app.post("/api/estimates/{estimate_id}/rebuild", response_model=EstimateResponse)
@@ -433,7 +433,7 @@ def set_tags(estimate_id: str, req: TagsRequest, user: User = Depends(get_curren
     graph = stored.graph.model_copy(deep=True)
     graph.tags = [t.strip() for t in req.tags if t.strip()][:20]
     saved = service.repo.overwrite_latest(estimate_id, graph)
-    return _to_response(saved)
+    return _to_response(saved, service.get_references(estimate_id))
 
 
 @app.post("/api/estimates/{estimate_id}/clone", response_model=EstimateResponse)
@@ -446,7 +446,7 @@ def clone_estimate(estimate_id: str, user: User = Depends(get_current_user)) -> 
         stored = service.clone_estimate(estimate_id, owner_id=user.id)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored)
+    return _to_response(stored, service.get_references(stored.estimate_id))
 
 
 @app.put("/api/estimates/{estimate_id}", response_model=EstimateResponse)
@@ -456,7 +456,7 @@ def update_estimate(estimate_id: str, graph: SolutionGraph, user: User = Depends
     if service.get_estimate(estimate_id) is None:
         raise HTTPException(status_code=404, detail="estimate not found")
     saved = service.update_estimate(estimate_id, graph)
-    return _to_response(saved)
+    return _to_response(saved, service.get_references(estimate_id))
 
 
 @app.get("/api/rates")
@@ -561,7 +561,7 @@ def recost_estimate(estimate_id: str, user: User = Depends(get_current_user)) ->
         saved = service.recost_estimate(estimate_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(saved)
+    return _to_response(saved, service.get_references(estimate_id))
 
 
 @app.put("/api/estimates/{estimate_id}/context", response_model=EstimateResponse)
@@ -628,7 +628,7 @@ def compute_scenarios_endpoint(estimate_id: str, req: ScenariosRequest, user: Us
         saved = service.compute_scenarios(estimate_id, req.scenarios)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(saved)
+    return _to_response(saved, service.get_references(estimate_id))
 
 
 @app.post("/api/estimates/{estimate_id}/suggestions")
@@ -718,7 +718,7 @@ def shared_estimate(token: str) -> EstimateResponse:
     stored = service.get_estimate(link.estimate_id)
     if stored is None:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored)
+    return _to_response(stored, service.get_references(link.estimate_id))
 
 
 @app.get("/api/estimates/{estimate_id}/comments")

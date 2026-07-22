@@ -73,6 +73,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const [subTab, setSubTab] = useState<"shape" | "estimate" | "outputs">("estimate");
   const [oralsMode, setOralsMode] = useState(false);
   const [busy, setBusy] = useState<null | "knobs" | "recost" | "scenarios" | "suggest" | "clone">(null);
   const [team, setTeam] = useState<TeamSuggestion[] | null>(null);
@@ -143,13 +144,29 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
         outcomes land above and half below. The range beneath it is the 80% confidence band (P10–P80).
       </p>
 
+      {/* Estimate is the central object: Shape it (levers) -> Estimate (the number itself) -> Outputs (what it produces). */}
+      <div className="flex items-center gap-1 border-b border-line mb-5">
+        {([
+          { key: "estimate", label: "Estimate" },
+          { key: "shape", label: "Shape it" },
+          { key: "outputs", label: "Outputs" },
+        ] as const).map((t) => (
+          <button key={t.key} onClick={() => setSubTab(t.key)}
+            className={"px-3.5 py-2 text-[13px] font-medium border-b-2 -mb-px " + (subTab === t.key ? "border-brand-orange text-ink" : "border-transparent text-muted hover:text-ink")}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Output panels — balanced masonry columns fill cohesively (no dead space); one column on mobile. */}
       <div className="columns-1 lg:columns-2 gap-5 [&>*]:break-inside-avoid">
-        <Section title={<>Reference architecture <span className="normal-case tracking-normal text-muted">(Phase 1 sketch)</span></>}>
-          <MermaidDiagram code={est.mermaid} />
-        </Section>
+        {subTab === "outputs" && (
+          <Section title={<>Reference architecture <span className="normal-case tracking-normal text-muted">(Phase 1 sketch)</span></>}>
+            <MermaidDiagram code={est.mermaid} />
+          </Section>
+        )}
 
-        {!readOnly && (
+        {subTab === "shape" && !readOnly && (
           <Section title="Deal-shaping" expandable={false}>
             <div className="my-1">
               <div className="flex justify-between text-[13px] font-semibold"><span>AI Tier <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span></span><span>{Math.round(aiBoost * 100)}% boost</span></div>
@@ -175,7 +192,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           </Section>
         )}
 
-        {rec && (
+        {subTab === "estimate" && rec && (
           <Section title="Top-down vs bottom-up">
             <div className="flex items-center gap-3 text-[13px]">
               <span>Bottom-up <b>{pts(rec.bottom_up_points)}</b></span>
@@ -187,7 +204,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           </Section>
         )}
 
-        {g.work_items.length > 0 && (() => {
+        {subTab === "estimate" && g.work_items.length > 0 && (() => {
           const parentIds = new Set(g.work_items.map((w) => w.parent_id).filter(Boolean));
           const total = g.work_items.filter((w) => !parentIds.has(w.id)).reduce((sum, w) => sum + w.points.realistic, 0);
           return (
@@ -218,7 +235,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           );
         })()}
 
-        {(() => {
+        {subTab === "estimate" && (() => {
           // Factors sourced from Context Panel risk entries (family "Risk: ...")
           // are already shown there — don't duplicate them in the output.
           const complexity = (g.complexity_factors ?? []).filter((f) => !f.family.startsWith("Risk: "));
@@ -237,7 +254,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           );
         })()}
 
-        {(scenarios.length > 0 || !readOnly) && (
+        {subTab === "shape" && (scenarios.length > 0 || !readOnly) && (
           <Section title="Staffing & development scenarios" actions={!readOnly ? <button className="btn text-[13px]" onClick={compareScenarios} disabled={busy !== null}>{busy === "scenarios" ? "Computing…" : "Compare models"}</button> : undefined}>
             {scenarios.length === 0 ? (
               <p className="text-muted text-[13px] m-0">Compare AI Tiers (1-5) and US / nearshore / blended staffing on the same scope.</p>
@@ -253,13 +270,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           </Section>
         )}
 
-        {est.references.length > 0 && (
-          <Section title="Reference class (memory)" defaultOpen={false}>
-            {est.references.map((r) => (<div key={r.estimate_id} className="text-[13px] py-2 border-b border-line last:border-0"><b>{r.project_name}</b> <span className="text-brand-green font-semibold">{Math.round(r.similarity * 100)}%</span><div className="text-muted">{r.why}</div></div>))}
-          </Section>
-        )}
-
-        {!oralsMode && (
+        {subTab === "outputs" && !oralsMode && (
           <Section title={<>Team plan {g.team_plan.monthly_cost != null && <span className="normal-case tracking-normal text-muted">· {money(g.team_plan.monthly_cost)}/mo</span>}</>} defaultOpen={false}>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[13px]">
@@ -270,7 +281,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           </Section>
         )}
 
-        {tiers.length > 0 && (
+        {subTab === "shape" && tiers.length > 0 && (
           <Section title="AI Tiers — human-to-AI ratio" defaultOpen={false}>
             <p className="text-muted text-[12px] mt-0 mb-2">Reference for the Deal-shaping AI Tier selector above.</p>
             <div className="overflow-x-auto">
@@ -290,29 +301,35 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
           </Section>
         )}
 
-        <Section title={<>Optimization suggestions <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span></>} defaultOpen={false}
-          actions={!readOnly ? <button className="btn text-[13px]" onClick={loadSuggestions} disabled={busy !== null}>{busy === "suggest" ? "Thinking…" : "Suggest"}</button> : undefined}>
-          {!team && !deferrals ? (
-            <p className="text-muted text-[13px] m-0">Suggests team models that trade cost for speed and features to defer to a later release. Learns from past estimates.</p>
-          ) : (
-            <div>
-              <h3 className="text-[13px] font-semibold mb-1">Team models</h3>
-              {(team ?? []).map((t, i) => (<div key={i} className="text-[13px] py-2 border-b border-line last:border-0"><span className={"badge mr-1.5 " + (t.goal === "cheaper" ? "bg-brand-mint text-brand-sage" : "bg-brand-orange/15 text-brand-orange")}>{t.goal}</span><b>{t.scenario.name}</b>{t.result && !oralsMode && <span className="text-muted"> — {money(t.result.cost.p50)}, {t.result.duration_sprints.p50.toFixed(1)} spr</span>}<div className="text-muted">{t.rationale}</div></div>))}
-              <h3 className="text-[13px] font-semibold mb-1 mt-3">Defer to a later version</h3>
-              {(deferrals ?? []).map((d, i) => (<div key={i} className="text-[13px] py-2 border-b border-line last:border-0"><b>{d.feature}</b> <span className="text-brand-green font-semibold">−{d.est_sprint_saving.toFixed(1)} spr</span><div className="text-muted">{d.rationale}</div></div>))}
-            </div>
-          )}
-        </Section>
+        {subTab === "shape" && (
+          <Section title={<>Optimization suggestions <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span></>} defaultOpen={false}
+            actions={!readOnly ? <button className="btn text-[13px]" onClick={loadSuggestions} disabled={busy !== null}>{busy === "suggest" ? "Thinking…" : "Suggest"}</button> : undefined}>
+            {!team && !deferrals ? (
+              <p className="text-muted text-[13px] m-0">Suggests team models that trade cost for speed and features to defer to a later release. Learns from past estimates.</p>
+            ) : (
+              <div>
+                <h3 className="text-[13px] font-semibold mb-1">Team models</h3>
+                {(team ?? []).map((t, i) => (<div key={i} className="text-[13px] py-2 border-b border-line last:border-0"><span className={"badge mr-1.5 " + (t.goal === "cheaper" ? "bg-brand-mint text-brand-sage" : "bg-brand-orange/15 text-brand-orange")}>{t.goal}</span><b>{t.scenario.name}</b>{t.result && !oralsMode && <span className="text-muted"> — {money(t.result.cost.p50)}, {t.result.duration_sprints.p50.toFixed(1)} spr</span>}<div className="text-muted">{t.rationale}</div></div>))}
+                <h3 className="text-[13px] font-semibold mb-1 mt-3">Defer to a later version</h3>
+                {(deferrals ?? []).map((d, i) => (<div key={i} className="text-[13px] py-2 border-b border-line last:border-0"><b>{d.feature}</b> <span className="text-brand-green font-semibold">−{d.est_sprint_saving.toFixed(1)} spr</span><div className="text-muted">{d.rationale}</div></div>))}
+              </div>
+            )}
+          </Section>
+        )}
 
-        <Section title="Assumptions & rationale" defaultOpen={false}>
-          <ul className="m-0 pl-4 text-[13px] space-y-1">{g.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul>
-        </Section>
+        {subTab === "outputs" && (
+          <Section title="Assumptions & rationale" defaultOpen={false}>
+            <ul className="m-0 pl-4 text-[13px] space-y-1">{g.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+          </Section>
+        )}
       </div>
 
       {!isPublic && (
-        <Section title="Comments" expandable={false}>
-          <CommentsSection estimateId={est.estimate_id} canComment={canComment} />
-        </Section>
+        <div className="mt-5">
+          <Section title="Comments" expandable={false}>
+            <CommentsSection estimateId={est.estimate_id} canComment={canComment} />
+          </Section>
+        </div>
       )}
     </div>
   );

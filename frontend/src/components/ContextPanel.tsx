@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSource } from "../types";
+import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSource, Reference } from "../types";
 
 let _seq = 0;
 const uid = () => `e${Date.now().toString(36)}${_seq++}`;
@@ -11,6 +11,7 @@ const ENTRY_TABS = [
   { key: "risks", label: "Risks", scoped: true, hint: "Facts that could slow the effort down." },
   { key: "accelerators", label: "Accelerators", scoped: true, hint: "Facts that speed the effort up." },
   { key: "assumptions", label: "Assumptions", scoped: true, hint: "Things the estimate assumes to be true." },
+  { key: "reference", label: "Reference Estimates", scoped: false, hint: "Similar past estimates surfaced from memory." },
   { key: "external", label: "External Sources", scoped: false, hint: "Live systems feeding context." },
 ] as const;
 
@@ -28,9 +29,10 @@ function withSparqOS(panel: Panel): Panel {
   return { ...panel, external_sources: [sparqos, ...panel.external_sources] };
 }
 
-export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed, onToggle }: {
+export function ContextPanel({ estimateId, initial, references, canEdit, onRecalc, collapsed, onToggle }: {
   estimateId: string;
   initial: Panel;
+  references: Reference[];
   canEdit: boolean;
   onRecalc: (e: EstimateResponse) => void;
   collapsed: boolean;
@@ -60,20 +62,21 @@ export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed
   function count(key: TabKey): number {
     if (key === "external") return panel.external_sources.length;
     if (key === "phases") return panel.phases.length;
+    if (key === "reference") return references.length;
     return (panel[key] as ContextEntry[]).length;
   }
 
-  function addEntry(key: Exclude<TabKey, "phases" | "external">, e: Partial<ContextEntry>) {
+  function addEntry(key: Exclude<TabKey, "phases" | "external" | "reference">, e: Partial<ContextEntry>) {
     const entry: ContextEntry = { id: uid(), tab: key, source_type: "manual", content: "", scope: "estimate", status: "ingested", ...e };
     setPanel((p) => ({ ...p, [key]: [...(p[key] as ContextEntry[]), entry] }));
   }
-  function removeEntry(key: Exclude<TabKey, "phases" | "external">, id: string) {
+  function removeEntry(key: Exclude<TabKey, "phases" | "external" | "reference">, id: string) {
     setPanel((p) => ({ ...p, [key]: (p[key] as ContextEntry[]).filter((x) => x.id !== id) }));
   }
-  function setScope(key: Exclude<TabKey, "phases" | "external">, id: string, scope: string) {
+  function setScope(key: Exclude<TabKey, "phases" | "external" | "reference">, id: string, scope: string) {
     setPanel((p) => ({ ...p, [key]: (p[key] as ContextEntry[]).map((x) => x.id === id ? { ...x, scope } : x) }));
   }
-  function editContent(key: Exclude<TabKey, "phases" | "external">, id: string, content: string) {
+  function editContent(key: Exclude<TabKey, "phases" | "external" | "reference">, id: string, content: string) {
     setPanel((p) => ({ ...p, [key]: (p[key] as ContextEntry[]).map((x) => x.id === id ? { ...x, content } : x) }));
   }
 
@@ -109,7 +112,7 @@ export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed
           <div className="overflow-y-auto px-5 sm:px-7 py-3" style={{ height: "calc(42vh - 44px)" }}>
             {LIST_TABS.includes(tab) && (
               <EntryTab
-                tabKey={tab as Exclude<TabKey, "phases" | "external">}
+                tabKey={tab as Exclude<TabKey, "phases" | "external" | "reference">}
                 entries={panel[tab as "requirements"] as ContextEntry[]}
                 scoped={ENTRY_TABS.find((t) => t.key === tab)!.scoped}
                 hint={ENTRY_TABS.find((t) => t.key === tab)!.hint}
@@ -119,6 +122,7 @@ export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed
               />
             )}
             {tab === "phases" && <PhasesTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
+            {tab === "reference" && <ReferenceTab references={references} />}
             {tab === "external" && <ExternalTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
           </div>
         )}
@@ -364,6 +368,21 @@ function PhasesTab({ panel, setPanel, canEdit }: any) {
           <button className="btn text-[12px]" onClick={add} disabled={!name.trim()}>Add phase</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function ReferenceTab({ references }: { references: Reference[] }) {
+  return (
+    <div>
+      <p className="text-muted text-[12px] mt-0 mb-2">Similar past estimates, surfaced from memory to ground this one.</p>
+      {references.length === 0 && <p className="text-muted text-[13px]">No reference-class estimates yet.</p>}
+      {references.map((r) => (
+        <div key={r.estimate_id} className="py-2 border-b border-line last:border-0 text-[13px]">
+          <b>{r.project_name}</b> <span className="text-brand-green font-semibold">{Math.round(r.similarity * 100)}%</span>
+          <div className="text-muted">{r.why}</div>
+        </div>
+      ))}
     </div>
   );
 }
