@@ -12,6 +12,11 @@ class FakeLLM:
     """Routes by prompt content to canned structured replies."""
 
     def complete_json(self, system, user, *, max_tokens=4000):
+        if "Extract the NEW requirements" in user:
+            return {"requirements": [
+                {"text": "Grounded answers over the corpus", "kind": "functional", "confidence": 0.9},
+                {"text": "Supports multi-turn conversation", "kind": "functional", "confidence": 0.8},
+            ]}
         if "Extract the requirements" in user:
             return {"requirements": [
                 {"text": "Grounded answers over the corpus", "kind": "functional", "confidence": 0.9},
@@ -76,6 +81,29 @@ def test_build_estimate_falls_back_without_llm():
     )
     assert graph.matched_pattern_ids == ["rag-databricks"]
     assert any("heuristic" in a for a in graph.assumptions)
+
+
+def test_extract_new_requirements_filters_duplicates_via_safety_net():
+    """Even if the model includes something already in `existing`, the
+    word-overlap safety net drops it — only the genuinely new item survives."""
+    fake = FakeLLM()
+    existing = ["Grounded answers over the corpus documents"]
+    new = llm.extract_new_requirements("some dropped document text", existing, client=fake)
+    texts = [r["text"] for r in new]
+    assert texts == ["Supports multi-turn conversation"]
+
+
+def test_heuristic_new_requirements_decomposes_and_dedupes():
+    text = "- Grounded answers over the corpus\n- Supports multi-turn conversation\n- x"
+    existing = ["Grounded answers over the corpus"]
+    new = llm.heuristic_new_requirements(text, existing)
+    assert [r["text"] for r in new] == ["Supports multi-turn conversation"]
+    # "- x" is too short (< 10 chars after stripping the bullet) to count.
+
+
+def test_is_duplicate_catches_paraphrases_by_word_overlap():
+    assert llm._is_duplicate("Grounded answers over the corpus", ["The corpus grounds answers over"])
+    assert not llm._is_duplicate("Supports multi-turn conversation", ["Grounded answers over the corpus"])
 
 
 def test_llm_step_falls_back_on_error():

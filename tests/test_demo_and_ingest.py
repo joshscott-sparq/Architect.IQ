@@ -86,6 +86,22 @@ def test_extract_pdf(client):
     assert "no extractable text" in resp.json()["text"]
 
 
+def test_decompose_requirements_dedupes_against_existing(client):
+    text = "- Grounded answers over the corpus\n- Supports multi-turn conversation\n- x"
+    resp = client.post("/api/context/decompose-requirements", json={
+        "text": text, "existing": ["Grounded answers over the corpus"],
+    })
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert [it["text"] for it in items] == ["Supports multi-turn conversation"]
+
+
+def test_decompose_requirements_empty_text(client):
+    resp = client.post("/api/context/decompose-requirements", json={"text": "   ", "existing": []})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_extract_pdf_rejects_garbage(client):
     resp = client.post("/api/context/extract", files={"file": ("bad.pdf", b"not a pdf", "application/pdf")})
     assert resp.status_code == 422

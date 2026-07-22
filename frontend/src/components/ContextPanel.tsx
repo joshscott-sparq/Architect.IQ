@@ -142,12 +142,37 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
     onAdd(tabKey, { content: text.trim() });
     setText("");
   }
+
+  // On the Requirements tab, dropped/fetched content gets decomposed into
+  // atomic requirements and compared against what's already listed, so a
+  // dropped doc adds several distinct new entries instead of one raw blob
+  // that restates things already captured. Other tabs keep the raw content
+  // as a single entry, as before.
+  async function addExtractedContent(sourceType: "file" | "url", reference: string, rawText: string) {
+    if (tabKey !== "requirements" || !rawText.trim()) {
+      onAdd(tabKey, { source_type: sourceType, reference, content: rawText });
+      return;
+    }
+    const existing = (entries as ContextEntry[]).map((e) => e.content).filter(Boolean);
+    try {
+      const decomposed = await api.decomposeRequirements(rawText, existing);
+      if (decomposed.length === 0) {
+        onAdd(tabKey, { source_type: sourceType, reference, content: "No new requirements found — already covered by existing entries." });
+        return;
+      }
+      for (const d of decomposed) onAdd(tabKey, { source_type: sourceType, reference, content: d.text });
+    } catch {
+      // Decomposition failed — keep the raw content rather than losing it.
+      onAdd(tabKey, { source_type: sourceType, reference, content: rawText });
+    }
+  }
+
   async function addFromUrl() {
     if (!url.trim()) return;
     setBusy(true);
     try {
       const { text: fetched } = await api.ingestUrl(url.trim());
-      onAdd(tabKey, { source_type: "url", reference: url.trim(), content: fetched });
+      await addExtractedContent("url", url.trim(), fetched);
       setUrl(""); setUrlMode(false);
     } catch { onAdd(tabKey, { source_type: "url", reference: url.trim(), content: "", status: "error" }); }
     finally { setBusy(false); }
@@ -159,9 +184,10 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
       onAdd(tabKey, { id: tempId, source_type: "file", reference: f.name, content: "", status: "processing" });
       try {
         const { filename, text: extracted } = await api.extractContext(f);
-        // Replace the processing placeholder with the ingested entry.
+        // Keep the "processing" placeholder visible through decomposition too,
+        // then swap it for the real entry(ies) once that's done.
+        await addExtractedContent("file", filename, extracted);
         onRemove(tabKey, tempId);
-        onAdd(tabKey, { source_type: "file", reference: filename, content: extracted });
       } catch {
         onRemove(tabKey, tempId);
         onAdd(tabKey, { source_type: "file", reference: f.name, content: "", status: "error" });

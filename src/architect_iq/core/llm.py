@@ -95,6 +95,10 @@ def extract_requirements(prd_text: str, *, client: LLMClient | None = None) -> l
         f"PRD:\n{prd_text}"
     )
     data = _client(client).complete_json(system, user)
+    return _parse_requirement_items(data)
+
+
+def _parse_requirement_items(data: dict) -> list[dict]:
     out: list[dict] = []
     for r in data.get("requirements", []):
         text = str(r.get("text", "")).strip()
@@ -105,6 +109,70 @@ def extract_requirements(prd_text: str, *, client: LLMClient | None = None) -> l
             kind = "functional"
         conf = r.get("confidence", 0.7)
         out.append({"text": text[:300], "kind": kind, "confidence": _clamp(conf)})
+    return out
+
+
+def _normalize_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def _is_duplicate(candidate: str, existing: list[str], threshold: float = 0.6) -> bool:
+    """Word-overlap heuristic: True if `candidate` substantially restates an existing entry."""
+    cand_words = _normalize_words(candidate)
+    if not cand_words:
+        return True
+    for e in existing:
+        e_words = _normalize_words(e)
+        if not e_words:
+            continue
+        overlap = len(cand_words & e_words) / len(cand_words | e_words)
+        if overlap >= threshold:
+            return True
+    return False
+
+
+def extract_new_requirements(text: str, existing: list[str], *, client: LLMClient | None = None) -> list[dict]:
+    """Decompose `text` (a dropped file or fetched URL) into atomic requirements,
+    excluding anything that substantively duplicates an entry already in `existing`
+    (e.g. what's already in the Context Panel's Requirements tab).
+
+    Same [{text, kind, confidence}] shape as `extract_requirements`. A word-overlap
+    filter runs as a final safety net even on the LLM path, in case a near-duplicate
+    slips through the prompt.
+    """
+    existing_block = "\n".join(f"- {e}" for e in existing) if existing else "(none yet)"
+    system = (
+        "You are a senior delivery lead adding to an existing requirements list from a "
+        "newly dropped document. Decompose the document into distinct, atomic "
+        "requirements, and OMIT anything that substantively duplicates an existing "
+        "requirement below — paraphrases and near-duplicates count as duplicates."
+    )
+    user = (
+        f"Existing requirements already captured:\n{existing_block}\n\n"
+        "Extract the NEW requirements from the following document that are not already "
+        "covered above. For each, give the text, a kind (functional | non_functional | "
+        "constraint), and a confidence 0-1.\n\n"
+        'Return JSON: {"requirements": [{"text": str, "kind": str, "confidence": number}]}\n\n'
+        f"Document:\n{text}"
+    )
+    data = _client(client).complete_json(system, user)
+    items = _parse_requirement_items(data)
+    return [it for it in items if not _is_duplicate(it["text"], existing)]
+
+
+_BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+
+
+def heuristic_new_requirements(text: str, existing: list[str], max_items: int = 60) -> list[dict]:
+    """Deterministic fallback for extract_new_requirements: line-split + dedup filter."""
+    out: list[dict] = []
+    for line in text.splitlines():
+        stripped = _BULLET.sub("", line).strip()
+        if len(stripped) < 10 or _is_duplicate(stripped, existing):
+            continue
+        out.append({"text": stripped[:300], "kind": "functional", "confidence": 0.5})
+        if len(out) >= max_items:
+            break
     return out
 
 

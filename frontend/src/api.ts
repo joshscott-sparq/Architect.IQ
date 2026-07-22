@@ -115,6 +115,8 @@ export const api = {
     form.append("file", file);
     return http<{ filename: string; text: string }>("/api/context/extract", { method: "POST", body: form });
   },
+  decomposeRequirements: (text: string, existing: string[]) =>
+    http<{ text: string; kind: string; confidence: number }[]>("/api/context/decompose-requirements", jsonBody({ text, existing })),
 
   // --- Rate cards ---
   getRates: () =>

@@ -153,6 +153,17 @@ class ContextExtractResponse(BaseModel):
     text: str
 
 
+class DecomposeRequirementsRequest(BaseModel):
+    text: str
+    existing: list[str] = Field(default_factory=list)
+
+
+class DecomposedRequirement(BaseModel):
+    text: str
+    kind: str
+    confidence: float
+
+
 def _to_response(stored, references: list[Reference] | None = None) -> EstimateResponse:
     return EstimateResponse(
         estimate_id=stored.estimate_id,
@@ -239,6 +250,28 @@ async def extract_context(file: UploadFile = File(...), user: User = Depends(get
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=422, detail=f"could not parse {name}: {exc}")
     return ContextExtractResponse(filename=name, text=text)
+
+
+@app.post("/api/context/decompose-requirements")
+def decompose_requirements(req: DecomposeRequirementsRequest, user: User = Depends(get_current_user)) -> list[DecomposedRequirement]:
+    """Break dropped/fetched text into atomic requirements not already covered.
+
+    Used when new context lands on the Requirements tab: decompose the document
+    into distinct requirement statements and skip anything that substantively
+    duplicates an entry already in `existing` (the current Requirements list).
+    """
+    from ..core import llm
+
+    if not req.text.strip():
+        return []
+    if llm.available():
+        try:
+            items = llm.extract_new_requirements(req.text, req.existing)
+            return [DecomposedRequirement(**it) for it in items]
+        except Exception:  # noqa: BLE001 - fall back to the heuristic on any LLM error
+            pass
+    items = llm.heuristic_new_requirements(req.text, req.existing)
+    return [DecomposedRequirement(**it) for it in items]
 
 
 _IMAGE_TYPES = {
