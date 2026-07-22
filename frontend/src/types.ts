@@ -155,6 +155,7 @@ export interface EstimateResponse {
   graph: Graph;
   mermaid: string;
   references: Reference[];
+  opportunity_id?: string | null;
 }
 
 export interface EstimateSummary {

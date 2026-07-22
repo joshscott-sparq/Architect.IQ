@@ -251,7 +251,7 @@ def seed_demo(service: EstimateService) -> dict:
         )
 
         stored, refs = service.create_estimate(
-            sc.project_name, sc.prd_text, sc.context, owner_id=owner_id, opportunity_id=opp.id
+            sc.project_name, sc.prd_text, sc.context, owner_id=owner_id, opportunity_id=opp.id, use_llm=False,
         )
         if sc.recompute is not None:
             stored = service.update_estimate(stored.estimate_id, recompute(stored.graph, sc.recompute))
@@ -281,7 +281,7 @@ def seed_demo(service: EstimateService) -> dict:
         acct = directory.get_account(opp.account_id) if opp else None
         panel = _lead_context_panel(opp, acct)
         try:
-            service.recalculate_from_context(lead, panel)
+            service.recalculate_from_context(lead, panel, use_llm=False)
         except Exception:  # noqa: BLE001 - context recalc is best-effort in seeding
             pass
 

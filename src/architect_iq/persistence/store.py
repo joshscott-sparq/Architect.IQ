@@ -33,6 +33,7 @@ class StoredEstimate:
     version: int
     graph: SolutionGraph
     created_at: str
+    opportunity_id: str | None = None
 
 
 @dataclass
@@ -130,7 +131,7 @@ class SQLiteEstimateRepository(EstimateRepository):
                 "VALUES (?, ?, ?, ?)",
                 (estimate_id, 1, payload, now),
             )
-        return StoredEstimate(estimate_id, 1, graph, now)
+        return StoredEstimate(estimate_id, 1, graph, now, opportunity_id=opportunity_id)
 
     def overwrite_latest(self, estimate_id: str, graph: SolutionGraph) -> StoredEstimate:
         """Auto-save: replace the current version's graph in place (no new version).
@@ -152,7 +153,7 @@ class SQLiteEstimateRepository(EstimateRepository):
                 "UPDATE estimates SET updated_at = ?, project_name = ? WHERE id = ?",
                 (now, graph.project_name, estimate_id),
             )
-        return StoredEstimate(estimate_id, version, graph, now)
+        return StoredEstimate(estimate_id, version, graph, now, opportunity_id=self.owner_and_opportunity(estimate_id)[1])
 
     def clone(self, estimate_id: str, owner_id: str | None = None) -> StoredEstimate:
         """Copy the latest graph into a brand-new estimate (version 1).
@@ -185,7 +186,7 @@ class SQLiteEstimateRepository(EstimateRepository):
                 "UPDATE estimates SET current_version = ?, updated_at = ? WHERE id = ?",
                 (new_version, now, estimate_id),
             )
-        return StoredEstimate(estimate_id, new_version, graph, now)
+        return StoredEstimate(estimate_id, new_version, graph, now, opportunity_id=self.owner_and_opportunity(estimate_id)[1])
 
     def get(self, estimate_id: str, version: int | None = None) -> StoredEstimate | None:
         with self._connect() as conn:
@@ -206,7 +207,7 @@ class SQLiteEstimateRepository(EstimateRepository):
         if row is None:
             return None
         graph = SolutionGraph.model_validate_json(row["graph_json"])
-        return StoredEstimate(estimate_id, row["version"], graph, row["created_at"])
+        return StoredEstimate(estimate_id, row["version"], graph, row["created_at"], opportunity_id=self.owner_and_opportunity(estimate_id)[1])
 
     def list_versions(self, estimate_id: str) -> list[int]:
         with self._connect() as conn:

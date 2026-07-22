@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams }
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { useTheme } from "./theme";
+import { Dashboard } from "./components/Dashboard";
 import { NewEstimate } from "./components/NewEstimate";
 import { EstimatePage } from "./components/EstimatePage";
 import { EstimatesList } from "./components/EstimatesList";
@@ -71,7 +72,8 @@ export default function App() {
   const isEstimatePage = location.pathname.startsWith("/estimates/");
 
   const nav: { to: string; label: string; show: boolean; end?: boolean }[] = [
-    { to: "/", label: "Opportunities", show: true, end: true },
+    { to: "/", label: "Home", show: true, end: true },
+    { to: "/opportunities", label: "Opportunities", show: true },
     { to: "/estimates", label: "Estimates", show: true },
     { to: "/settings", label: "Settings", show: !isClient },
   ];
@@ -126,7 +128,8 @@ export default function App() {
 
       <main className={"max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 " + (isEstimatePage ? (ctxCollapsed ? "pb-24" : "pb-[46vh]") : "pb-16")}>
         <Routes>
-          <Route path="/" element={<OpportunitiesList key={listKey} onOpen={(id) => navigate(`/opportunities/${id}`)} seeding={demoSeeding} canCreate={!isClient} />} />
+          <Route path="/" element={<Dashboard userName={user.name} canCreate={!isClient} seeding={demoSeeding} />} />
+          <Route path="/opportunities" element={<OpportunitiesList key={listKey} onOpen={(id) => navigate(`/opportunities/${id}`)} seeding={demoSeeding} canCreate={!isClient} />} />
           <Route path="/opportunities/:id" element={<OpportunityRoute canCreate={!isClient} />} />
           <Route path="/estimates" element={<EstimatesList key={listKey} onOpen={(id) => navigate(`/estimates/${id}`)} seeding={demoSeeding} />} />
           <Route path="/estimates/:id" element={<EstimatePage isClient={isClient} ctxCollapsed={ctxCollapsed} onToggleCtx={toggleCtx} />} />

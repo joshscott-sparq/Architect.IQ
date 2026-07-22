@@ -129,6 +129,8 @@ export const api = {
   },
   activateRateCard: (id: string) => http(`/api/rate-cards/${id}/activate`, { method: "POST" }),
   deleteRateCard: (id: string) => http(`/api/rate-cards/${id}`, { method: "DELETE" }),
+  updateRateCard: (id: string, rows: { discipline: string; tier: string; location: string; day_rate: number }[]) =>
+    http<{ id: string; name: string }>(`/api/rate-cards/${id}`, { ...jsonBody({ rows }), method: "PUT" }),
 
   // --- Accounts / opportunities / users (admin) ---
   listAccounts: () => http<{ id: string; name: string; sf_account_id?: string }[]>("/api/accounts"),

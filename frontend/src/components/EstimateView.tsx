@@ -8,6 +8,9 @@ import { CommentsSection } from "./CommentsSection";
 
 const money = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+
+// Dummy Salesforce link — real org/instance wiring is a later integration step.
+const sfUrl = (kind: "Account" | "Opportunity", sfId: string) => `https://sparq.my.salesforce.com/lightning/r/${kind}/${sfId}/view`;
 const pts = (n: number) => `${Math.round(n)} pts`;
 
 const TH = "text-left py-1.5 px-2 border-b border-line uppercase text-[12px]";
@@ -48,7 +51,12 @@ function TagBar({ tags, canEdit, onChange }: { tags: string[]; canEdit: boolean;
   );
 }
 
-export function EstimateView({ initial, canEdit = true, canComment = true, canClone = false, isPublic = false, onClone }: { initial: EstimateResponse; canEdit?: boolean; canComment?: boolean; canClone?: boolean; isPublic?: boolean; onClone?: (id: string) => void }) {
+export function EstimateView({ initial, canEdit = true, canComment = true, canClone = false, isPublic = false, account, opportunity, onClone }: {
+  initial: EstimateResponse; canEdit?: boolean; canComment?: boolean; canClone?: boolean; isPublic?: boolean;
+  account?: { name: string; sfId?: string | null };
+  opportunity?: { name: string; sfId?: string | null };
+  onClone?: (id: string) => void;
+}) {
   const readOnly = !canEdit;
   const [est, setEst] = useState(initial);
   const [aiBoost, setAiBoost] = useState(0);
@@ -93,6 +101,16 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
         <h1 className="m-0 text-[22px] font-bold">{g.project_name}</h1>
         <span className="badge bg-brand-orange/15 text-brand-orange">v{est.version}</span>
         {g.matched_pattern_ids.map((p) => <span key={p} className="badge bg-brand-mint text-brand-sage">{p}</span>)}
+        {account && (
+          account.sfId
+            ? <a href={sfUrl("Account", account.sfId)} target="_blank" rel="noreferrer" className="badge bg-orange-100 text-brand-orange hover:underline" title="Open Account in Salesforce">{account.name} ↗</a>
+            : <span className="badge bg-orange-100 text-brand-orange">{account.name}</span>
+        )}
+        {opportunity && (
+          opportunity.sfId
+            ? <a href={sfUrl("Opportunity", opportunity.sfId)} target="_blank" rel="noreferrer" className="badge bg-orange-100 text-brand-orange hover:underline" title="Open Opportunity in Salesforce">{opportunity.name} ↗</a>
+            : <span className="badge bg-orange-100 text-brand-orange">{opportunity.name}</span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {canEdit && (
             <div className="relative">

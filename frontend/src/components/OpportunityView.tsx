@@ -26,7 +26,7 @@ export function OpportunityView({ id, onOpenEstimate, canCreate = true }: {
   return (
     <div>
       <nav className="text-[13px] text-muted mb-3">
-        <Link to="/" className="hover:text-brand-orange">Opportunities</Link>
+        <Link to="/opportunities" className="hover:text-brand-orange">Opportunities</Link>
         <span className="mx-1.5">/</span>
         <span className="text-ink font-medium">{opportunity.name}</span>
       </nav>

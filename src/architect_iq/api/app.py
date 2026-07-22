@@ -27,10 +27,12 @@ from ..integrations.notion import get_opportunity_notes
 from ..memory.priors import ActualOutcome
 from ..memory.retrieval import Reference
 from ..models.context import ContextPanel
+from ..models.enums import Location
 from ..models.org import AccessContext, Permission, Role, User
 from ..models.results import ClientContext
 from ..models.scenario import Scenario
 from ..models.solution_graph import SolutionGraph
+from ..models.team import RateRow
 from ..service import EstimateService
 
 app = FastAPI(title="Architect.IQ", version="0.1.0")
@@ -143,6 +145,7 @@ class EstimateResponse(BaseModel):
     graph: SolutionGraph
     mermaid: str
     references: list[Reference] = []
+    opportunity_id: str | None = None
 
 
 class ContextExtractResponse(BaseModel):
@@ -150,13 +153,14 @@ class ContextExtractResponse(BaseModel):
     text: str
 
 
-def _to_response(estimate_id: str, version: int, graph: SolutionGraph, references: list[Reference] | None = None) -> EstimateResponse:
+def _to_response(stored, references: list[Reference] | None = None) -> EstimateResponse:
     return EstimateResponse(
-        estimate_id=estimate_id,
-        version=version,
-        graph=graph,
-        mermaid=architecture_mermaid(graph),
+        estimate_id=stored.estimate_id,
+        version=stored.version,
+        graph=stored.graph,
+        mermaid=architecture_mermaid(stored.graph),
         references=references or [],
+        opportunity_id=stored.opportunity_id,
     )
 
 
@@ -336,7 +340,7 @@ def create_estimate(req: CreateEstimateRequestAuthed, user: User = Depends(get_c
         req.project_name or "Untitled", req.prd_text, req.client_context, req.match_override,
         owner_id=user.id, opportunity_id=req.opportunity_id,
     )
-    return _to_response(stored.estimate_id, stored.version, stored.graph, references)
+    return _to_response(stored, references)
 
 
 @app.get("/api/estimates")
@@ -352,7 +356,7 @@ def get_estimate(estimate_id: str, version: int | None = None, user: User = Depe
     stored = service.get_estimate(estimate_id, version)
     if stored is None:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored.estimate_id, stored.version, stored.graph)
+    return _to_response(stored)
 
 
 @app.post("/api/estimates/{estimate_id}/recompute", response_model=EstimateResponse)
@@ -364,7 +368,7 @@ def recompute_estimate(estimate_id: str, overrides: RecomputeOverrides, user: Us
         raise HTTPException(status_code=404, detail="estimate not found")
     updated_graph = recompute(stored.graph, overrides)
     saved = service.update_estimate(estimate_id, updated_graph)
-    return _to_response(saved.estimate_id, saved.version, saved.graph)
+    return _to_response(saved)
 
 
 @app.post("/api/estimates/{estimate_id}/rebuild", response_model=EstimateResponse)
@@ -379,7 +383,7 @@ def rebuild_estimate(estimate_id: str, req: CreateEstimateRequestAuthed, user: U
         )
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored.estimate_id, stored.version, stored.graph, references)
+    return _to_response(stored, references)
 
 
 class TagsRequest(BaseModel):
@@ -396,7 +400,7 @@ def set_tags(estimate_id: str, req: TagsRequest, user: User = Depends(get_curren
     graph = stored.graph.model_copy(deep=True)
     graph.tags = [t.strip() for t in req.tags if t.strip()][:20]
     saved = service.repo.overwrite_latest(estimate_id, graph)
-    return _to_response(saved.estimate_id, saved.version, saved.graph)
+    return _to_response(saved)
 
 
 @app.post("/api/estimates/{estimate_id}/clone", response_model=EstimateResponse)
@@ -409,7 +413,7 @@ def clone_estimate(estimate_id: str, user: User = Depends(get_current_user)) -> 
         stored = service.clone_estimate(estimate_id, owner_id=user.id)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored.estimate_id, stored.version, stored.graph)
+    return _to_response(stored)
 
 
 @app.put("/api/estimates/{estimate_id}", response_model=EstimateResponse)
@@ -419,7 +423,7 @@ def update_estimate(estimate_id: str, graph: SolutionGraph, user: User = Depends
     if service.get_estimate(estimate_id) is None:
         raise HTTPException(status_code=404, detail="estimate not found")
     saved = service.update_estimate(estimate_id, graph)
-    return _to_response(saved.estimate_id, saved.version, saved.graph)
+    return _to_response(saved)
 
 
 @app.get("/api/rates")
@@ -476,6 +480,27 @@ async def create_rate_card(file: UploadFile = File(...), name: str = Form(None),
     return _card_dict(card, include_rows=True)
 
 
+class RateRowIn(BaseModel):
+    discipline: str
+    tier: str
+    location: Location
+    day_rate: float = Field(ge=0.0)
+
+
+class UpdateRateCardRequest(BaseModel):
+    rows: list[RateRowIn]
+
+
+@app.put("/api/rate-cards/{card_id}")
+def update_rate_card(card_id: str, req: UpdateRateCardRequest, admin: User = Depends(require_admin)) -> dict:
+    """Replace a saved rate card's rows in place (manual edit, not a re-upload)."""
+    rows = [RateRow(discipline=r.discipline, tier=r.tier, location=r.location, day_rate=r.day_rate) for r in req.rows]
+    try:
+        return _card_dict(service.update_rate_card(card_id, rows), include_rows=True)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="rate card not found")
+
+
 @app.post("/api/rate-cards/{card_id}/activate")
 def activate_rate_card(card_id: str, admin: User = Depends(require_admin)) -> dict:
     try:
@@ -503,7 +528,7 @@ def recost_estimate(estimate_id: str, user: User = Depends(get_current_user)) ->
         saved = service.recost_estimate(estimate_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(saved.estimate_id, saved.version, saved.graph)
+    return _to_response(saved)
 
 
 @app.put("/api/estimates/{estimate_id}/context", response_model=EstimateResponse)
@@ -514,7 +539,7 @@ def save_context(estimate_id: str, panel: ContextPanel, user: User = Depends(get
         stored, references = service.recalculate_from_context(estimate_id, panel)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored.estimate_id, stored.version, stored.graph, references)
+    return _to_response(stored, references)
 
 
 class UrlIngestRequest(BaseModel):
@@ -570,7 +595,7 @@ def compute_scenarios_endpoint(estimate_id: str, req: ScenariosRequest, user: Us
         saved = service.compute_scenarios(estimate_id, req.scenarios)
     except KeyError:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(saved.estimate_id, saved.version, saved.graph)
+    return _to_response(saved)
 
 
 @app.post("/api/estimates/{estimate_id}/suggestions")
@@ -660,7 +685,7 @@ def shared_estimate(token: str) -> EstimateResponse:
     stored = service.get_estimate(link.estimate_id)
     if stored is None:
         raise HTTPException(status_code=404, detail="estimate not found")
-    return _to_response(stored.estimate_id, stored.version, stored.graph)
+    return _to_response(stored)
 
 
 @app.get("/api/estimates/{estimate_id}/comments")

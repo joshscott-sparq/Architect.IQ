@@ -2,6 +2,7 @@
 
 import importlib
 
+import pytest
 from fastapi.testclient import TestClient
 
 SAMPLE_CREDS = {
@@ -9,6 +10,18 @@ SAMPLE_CREDS = {
     "user": ("user@architect.iq", "user123"),
     "client": ("client@architect.iq", "client123"),
 }
+
+
+@pytest.fixture(autouse=True)
+def _disable_llm_by_default(monkeypatch):
+    """No test should call the real Anthropic API — it burns tokens and time.
+
+    Tests that need to exercise the LLM code path inject a FakeLLM client
+    (see test_llm.py) rather than relying on a real key; this fixture makes
+    that the enforced default regardless of whether ANTHROPIC_API_KEY happens
+    to be set in the developer's environment (e.g. via .env).
+    """
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
 
 def build_client(tmp_path, monkeypatch, role: str = "admin") -> TestClient:

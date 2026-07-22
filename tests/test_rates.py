@@ -88,6 +88,29 @@ def test_rate_card_management(client):
     assert len(client.get("/api/rate-cards").json()) == 1
 
 
+def test_update_rate_card_rows(client):
+    up = client.post("/api/rate-cards", files={"file": ("onshore.csv", ONSHORE, "text/csv")}, data={"name": "Onshore"})
+    card_id = up.json()["id"]
+
+    resp = client.put(f"/api/rate-cards/{card_id}", json={"rows": [
+        {"discipline": "AI & ML", "tier": "Senior", "location": "US", "day_rate": 2400},
+    ]})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["rates"]) == 1
+    assert body["rates"][0]["day_rate"] == 2400
+
+    # Persisted, not just returned.
+    cards = client.get("/api/rate-cards").json()
+    updated = next(c for c in cards if c["id"] == card_id)
+    assert updated["summary"]["rows"] == 1
+
+
+def test_update_rate_card_404(client):
+    resp = client.put("/api/rate-cards/does-not-exist", json={"rows": []})
+    assert resp.status_code == 404
+
+
 def test_recost_uses_active_card(client):
     client.post("/api/rate-cards", files={"file": ("onshore.csv", ONSHORE, "text/csv")}, data={"name": "Onshore"})
     created = client.post("/api/estimates", json={

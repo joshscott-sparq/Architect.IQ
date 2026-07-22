@@ -1,25 +1,31 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
-const money = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+const HOURS_PER_DAY = 8;
+const LOCATIONS = ["US", "NS"];
 
 type Cards = Awaited<ReturnType<typeof api.listRateCards>>;
 type Rates = Awaited<ReturnType<typeof api.getRates>>;
+type Row = { discipline: string; tier: string; location: string; day_rate: number };
 
 export function RatesView() {
   const [cards, setCards] = useState<Cards | null>(null);
   const [active, setActive] = useState<Rates | null>(null);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [dirty, setDirty] = useState(false);
   const [name, setName] = useState("");
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
     api.listRateCards().then(setCards).catch((e) => setError(String(e)));
-    api.getRates().then(setActive).catch(() => {});
+    api.getRates().then((r) => { setActive(r); setRows(r.rates); setDirty(false); }).catch(() => {});
   }
   useEffect(refresh, []);
+
+  const activeCardId = cards?.find((c) => c.is_active)?.id;
 
   async function upload(files: FileList | null) {
     if (!files || !files[0]) return;
@@ -49,6 +55,33 @@ export function RatesView() {
     }
   }
 
+  function setRow(i: number, patch: Partial<Row>) {
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setDirty(true);
+  }
+  function addRow() {
+    setRows((rs) => [...rs, { discipline: "", tier: "", location: "US", day_rate: 0 }]);
+    setDirty(true);
+  }
+  function removeRow(i: number) {
+    setRows((rs) => rs.filter((_, idx) => idx !== i));
+    setDirty(true);
+  }
+
+  async function saveRows() {
+    if (!activeCardId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateRateCard(activeCardId, rows);
+      refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <div>
@@ -56,7 +89,7 @@ export function RatesView() {
           <h2 className="card-h">Rate cards</h2>
           <p className="text-[13px] text-muted mt-0">
             Save multiple rate cards; one is active and one is the default. Estimates use the active card;
-            re-cost an estimate to apply a change. Each row is role, tier, location, and rate.
+            re-cost an estimate to apply a change. Activate a card to edit its rates on the right.
           </p>
           {cards?.map((c) => (
             <div key={c.id} className="flex items-center gap-2 py-2 border-b border-line last:border-0 text-[13px]">
@@ -95,30 +128,61 @@ export function RatesView() {
 
       <div>
         <div className="card">
-          <h2 className="card-h">Active card{active ? ` · ${active.source}` : ""}</h2>
+          <h2 className="card-h">
+            Active card{active ? ` · ${active.source}` : ""}
+            {dirty && <span className="normal-case tracking-normal text-brand-orange-deep ml-2">unsaved changes</span>}
+          </h2>
+          <p className="text-[13px] text-muted mt-0 mb-2">Rates shown per hour; stored internally as a day rate (× {HOURS_PER_DAY}).</p>
           {active && (
-            <div className="max-h-[560px] overflow-auto">
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr className="text-muted">
-                    <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Discipline</th>
-                    <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Tier</th>
-                    <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Loc</th>
-                    <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Day rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {active.rates.map((r, i) => (
-                    <tr key={i}>
-                      <td className="py-1.5 px-2 border-b border-line">{r.discipline}</td>
-                      <td className="py-1.5 px-2 border-b border-line">{r.tier}</td>
-                      <td className="py-1.5 px-2 border-b border-line">{r.location}</td>
-                      <td className="py-1.5 px-2 border-b border-line">{money(r.day_rate)}</td>
+            <>
+              <div className="max-h-[500px] overflow-auto">
+                <table className="w-full border-collapse text-[13px]">
+                  <thead>
+                    <tr className="text-muted">
+                      <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Discipline</th>
+                      <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Tier</th>
+                      <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">Loc</th>
+                      <th className="text-left py-1.5 px-2 border-b border-line uppercase text-[12px]">$/hr</th>
+                      <th className="w-6"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i}>
+                        <td className="py-1 px-1 border-b border-line">
+                          <input className="field !w-full !py-1 !px-1.5 text-[13px]" value={r.discipline}
+                            onChange={(e) => setRow(i, { discipline: e.target.value })} />
+                        </td>
+                        <td className="py-1 px-1 border-b border-line">
+                          <input className="field !w-full !py-1 !px-1.5 text-[13px]" value={r.tier}
+                            onChange={(e) => setRow(i, { tier: e.target.value })} />
+                        </td>
+                        <td className="py-1 px-1 border-b border-line">
+                          <select className="field !w-full !py-1 !px-1.5 text-[13px]" value={r.location}
+                            onChange={(e) => setRow(i, { location: e.target.value })}>
+                            {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-1 px-1 border-b border-line">
+                          <input type="number" min={0} step={1} className="field !w-20 !py-1 !px-1.5 text-[13px]"
+                            value={Math.round(r.day_rate / HOURS_PER_DAY)}
+                            onChange={(e) => setRow(i, { day_rate: (parseFloat(e.target.value) || 0) * HOURS_PER_DAY })} />
+                        </td>
+                        <td className="py-1 px-1 border-b border-line text-center">
+                          <button className="text-muted hover:text-brand-orange-deep" title="Remove row" onClick={() => removeRow(i)}>×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <button className="btn text-[13px]" onClick={addRow}>+ Add row</button>
+                <button className="btn btn-primary text-[13px] ml-auto" disabled={!dirty || saving} onClick={saveRows}>
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

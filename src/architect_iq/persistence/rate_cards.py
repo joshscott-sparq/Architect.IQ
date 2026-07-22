@@ -117,6 +117,13 @@ class SQLiteRateCardRepository:
             )
         return self.get(card_id)
 
+    def update_rows(self, card_id: str, rows: list[RateRow]) -> SavedRateCard:
+        if self.get(card_id) is None:
+            raise KeyError(f"rate card {card_id!r} not found")
+        with self._connect() as conn:
+            conn.execute("UPDATE rate_cards SET rows_json = ? WHERE id = ?", (_rows_to_json(rows), card_id))
+        return self.get(card_id)
+
     def activate(self, card_id: str) -> SavedRateCard:
         if self.get(card_id) is None:
             raise KeyError(f"rate card {card_id!r} not found")

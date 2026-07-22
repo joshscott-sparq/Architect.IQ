@@ -16,6 +16,7 @@ export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
   const navigate = useNavigate();
   const [current, setCurrent] = useState<EstimateResponse | null>(null);
   const [access, setAccess] = useState<{ can_edit: boolean; can_comment: boolean }>({ can_edit: true, can_comment: true });
+  const [crm, setCrm] = useState<{ account?: { name: string; sfId?: string | null }; opportunity?: { name: string; sfId?: string | null } }>({});
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
 
@@ -23,8 +24,20 @@ export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
     if (!id) return;
     setCurrent(null);
     setError(null);
+    setCrm({});
     Promise.all([api.getEstimate(id), api.access(id).catch(() => ({ can_edit: false, can_comment: false }))])
-      .then(([est, acc]) => { setCurrent(est); setAccess({ can_edit: acc.can_edit, can_comment: acc.can_comment }); })
+      .then(([est, acc]) => {
+        setCurrent(est);
+        setAccess({ can_edit: acc.can_edit, can_comment: acc.can_comment });
+        if (est.opportunity_id) {
+          api.getOpportunity(est.opportunity_id).then((data) => {
+            setCrm({
+              opportunity: { name: data.opportunity.name, sfId: data.opportunity.sf_opportunity_id },
+              account: data.account ? { name: data.account.name, sfId: data.account.sf_account_id } : undefined,
+            });
+          }).catch(() => {});
+        }
+      })
       .catch((e) => setError(String(e)));
   }, [id]);
 
@@ -34,7 +47,7 @@ export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
   return (
     <div>
       <nav className="text-[13px] text-muted mb-3">
-        <Link to="/" className="hover:text-brand-orange">Estimates</Link>
+        <Link to="/estimates" className="hover:text-brand-orange">Estimates</Link>
         <span className="mx-1.5">/</span>
         <span className="text-ink font-medium">{current.graph.project_name}</span>
       </nav>
@@ -44,6 +57,8 @@ export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
         canEdit={access.can_edit}
         canComment={access.can_comment}
         canClone={!isClient}
+        account={crm.account}
+        opportunity={crm.opportunity}
         onClone={(cloneId) => navigate(`/estimates/${cloneId}`)}
       />
       <ContextPanel
