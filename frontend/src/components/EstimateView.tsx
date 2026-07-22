@@ -12,6 +12,7 @@ const money = (n: number) =>
 // Dummy Salesforce link — real org/instance wiring is a later integration step.
 const sfUrl = (kind: "Account" | "Opportunity", sfId: string) => `https://sparq.my.salesforce.com/lightning/r/${kind}/${sfId}/view`;
 const pts = (n: number) => `${Math.round(n)} pts`;
+const fmtPts = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 const TH = "text-left py-1.5 px-2 border-b border-line uppercase text-[12px]";
 const TD = "py-1.5 px-2 border-b border-line";
@@ -185,6 +186,37 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
             <p className="text-muted text-xs mb-0 mt-1">Divergence widens the range; the blend is the working number.</p>
           </Section>
         )}
+
+        {g.work_items.length > 0 && (() => {
+          const parentIds = new Set(g.work_items.map((w) => w.parent_id).filter(Boolean));
+          const total = g.work_items.filter((w) => !parentIds.has(w.id)).reduce((sum, w) => sum + w.points.realistic, 0);
+          return (
+            <Section title={<>Estimate <span className="normal-case tracking-normal text-muted">(work breakdown)</span></>} defaultOpen={false}>
+              <p className="text-muted text-[12px] mt-0 mb-2">
+                Generated from context — the same requirements/risks/accelerators driving the numbers above.
+                Refine the Context panel below to change it; this table isn't hand-edited directly.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-[13px]">
+                  <thead><tr className="text-muted"><th className={TH}>Item</th><th className={TH}>Pts (R)</th><th className={TH}>O–P</th><th className={TH}>Practice</th></tr></thead>
+                  <tbody>
+                    {g.work_items.map((wi) => (
+                      <tr key={wi.id}>
+                        <td className={TD + (wi.level === "story" ? " pl-6" : "")}>{wi.story ?? wi.feature ?? wi.epic}</td>
+                        <td className={TD}>{fmtPts(wi.points.realistic)}</td>
+                        <td className={TD + " text-muted"}>{fmtPts(wi.points.optimistic ?? wi.points.realistic)}–{fmtPts(wi.points.pessimistic ?? wi.points.realistic)}</td>
+                        <td className={TD + " text-muted"}>{wi.practice ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-semibold"><td className={TD}>Total</td><td className={TD}>{pts(total)}</td><td className={TD}></td><td className={TD}></td></tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Section>
+          );
+        })()}
 
         {(() => {
           // Factors sourced from Context Panel risk entries (family "Risk: ...")

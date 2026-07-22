@@ -73,6 +73,9 @@ export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed
   function setScope(key: Exclude<TabKey, "phases" | "external">, id: string, scope: string) {
     setPanel((p) => ({ ...p, [key]: (p[key] as ContextEntry[]).map((x) => x.id === id ? { ...x, scope } : x) }));
   }
+  function editContent(key: Exclude<TabKey, "phases" | "external">, id: string, content: string) {
+    setPanel((p) => ({ ...p, [key]: (p[key] as ContextEntry[]).map((x) => x.id === id ? { ...x, content } : x) }));
+  }
 
   const dockHeight = collapsed ? "auto" : "42vh";
 
@@ -112,7 +115,7 @@ export function ContextPanel({ estimateId, initial, canEdit, onRecalc, collapsed
                 hint={ENTRY_TABS.find((t) => t.key === tab)!.hint}
                 phases={panel.phases}
                 canEdit={canEdit}
-                onAdd={addEntry} onRemove={removeEntry} onScope={setScope}
+                onAdd={addEntry} onRemove={removeEntry} onScope={setScope} onEdit={editContent}
               />
             )}
             {tab === "phases" && <PhasesTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
@@ -128,7 +131,7 @@ const SINGULAR: Record<string, string> = {
   requirements: "a requirement", risks: "a risk", accelerators: "an accelerator", assumptions: "an assumption",
 };
 
-function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope }: any) {
+function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope, onEdit }: any) {
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [urlMode, setUrlMode] = useState(false);
@@ -248,25 +251,55 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
       )}
       <p className="text-muted text-[12px] mt-2 mb-3">{hint}</p>
 
-      {entries.length === 0 && <p className="text-muted text-[13px]">Nothing here yet.</p>}
-      {entries.map((e: ContextEntry) => (
-        <div key={e.id} className="flex items-start gap-2 py-2 border-b border-line last:border-0 text-[13px]">
-          <span className={"badge mt-0.5 " + (e.status === "error" ? "bg-orange-100 text-brand-orange-deep" : e.status === "processing" ? "bg-line text-muted" : "bg-brand-mint text-brand-sage")}>
-            {e.status === "processing" ? "…" : e.source_type}
-          </span>
-          <div className="flex-1 min-w-0">
-            {e.reference && <div className="font-medium truncate">{e.reference}</div>}
-            <div className={"text-muted " + (e.reference ? "text-[12px]" : "")}>{e.content.slice(0, 240) || <span className="italic">{e.status === "processing" ? "reading…" : "no content"}</span>}{e.content.length > 240 ? "…" : ""}</div>
-          </div>
-          {scoped && (
-            <select className="field !w-auto !py-1 text-[12px]" value={e.scope} onChange={(ev) => onScope(tabKey, e.id, ev.target.value)} disabled={!canEdit}>
-              <option value="estimate">Entire estimate</option>
-              {phases.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          )}
-          {canEdit && <button className="text-muted hover:text-brand-orange-deep text-[12px]" onClick={() => onRemove(tabKey, e.id)}>remove</button>}
+      {entries.length === 0 ? (
+        <p className="text-muted text-[13px]">Nothing here yet.</p>
+      ) : (
+        <div className="overflow-x-auto border border-line rounded-xl">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="text-muted bg-canvas">
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-16">Source</th>
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px]">Content</th>
+                {scoped && <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-40">Scope</th>}
+                <th className="w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e: ContextEntry) => (
+                <tr key={e.id} className="border-b border-line last:border-0 align-top">
+                  <td className="py-1.5 px-2.5">
+                    <span className={"badge " + (e.status === "error" ? "bg-orange-100 text-brand-orange-deep" : e.status === "processing" ? "bg-line text-muted" : "bg-brand-mint text-brand-sage")}>
+                      {e.status === "processing" ? "…" : e.source_type}
+                    </span>
+                    {e.reference && <div className="text-muted text-[11px] truncate mt-1" title={e.reference}>{e.reference}</div>}
+                  </td>
+                  <td className="py-1 px-1">
+                    <textarea
+                      className="w-full bg-transparent resize-none outline-none text-[13px] px-1.5 py-1 rounded hover:bg-canvas focus:bg-canvas min-h-[36px]"
+                      value={e.content}
+                      placeholder={e.status === "processing" ? "reading…" : "no content"}
+                      onChange={(ev) => onEdit(tabKey, e.id, ev.target.value)}
+                      disabled={!canEdit || e.status === "processing"}
+                      rows={Math.max(1, Math.ceil(e.content.length / 70))}
+                    />
+                  </td>
+                  {scoped && (
+                    <td className="py-1.5 px-2.5">
+                      <select className="field !w-full !py-1 text-[12px]" value={e.scope} onChange={(ev) => onScope(tabKey, e.id, ev.target.value)} disabled={!canEdit}>
+                        <option value="estimate">Entire estimate</option>
+                        {phases.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </td>
+                  )}
+                  <td className="py-1.5 px-1.5 text-center">
+                    {canEdit && <button className="text-muted hover:text-brand-orange-deep" title="Remove" onClick={() => onRemove(tabKey, e.id)}>×</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -286,22 +319,45 @@ function PhasesTab({ panel, setPanel, canEdit }: any) {
   return (
     <div>
       <p className="text-muted text-[12px] mt-0 mb-2">Stages of the effort. Define by dates, a duration, or leave relative.</p>
-      {panel.phases.map((ph: any) => (
-        <div key={ph.id} className="flex flex-wrap items-center gap-2 py-2 border-b border-line last:border-0 text-[13px]">
-          <input className="field !w-40" value={ph.name} onChange={(e) => update(ph.id, { name: e.target.value })} disabled={!canEdit} />
-          <select className="field !w-auto !py-1 text-[12px]" value={ph.method} onChange={(e) => update(ph.id, { method: e.target.value })} disabled={!canEdit}>
-            <option value="relative">Relative</option>
-            <option value="duration">Duration</option>
-            <option value="dates">Dates</option>
-          </select>
-          {ph.method === "duration" && <input className="field !w-28 !py-1 text-[12px]" type="number" placeholder="weeks" value={ph.duration_weeks ?? ""} onChange={(e) => update(ph.id, { duration_weeks: parseFloat(e.target.value) || null })} disabled={!canEdit} />}
-          {ph.method === "dates" && <>
-            <input className="field !w-36 !py-1 text-[12px]" type="date" value={ph.start_date ?? ""} onChange={(e) => update(ph.id, { start_date: e.target.value })} disabled={!canEdit} />
-            <input className="field !w-36 !py-1 text-[12px]" type="date" value={ph.end_date ?? ""} onChange={(e) => update(ph.id, { end_date: e.target.value })} disabled={!canEdit} />
-          </>}
-          {canEdit && <button className="text-muted hover:text-brand-orange-deep text-[12px] ml-auto" onClick={() => remove(ph.id)}>remove</button>}
+      {panel.phases.length > 0 && (
+        <div className="overflow-x-auto border border-line rounded-xl mb-3">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="text-muted bg-canvas">
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px]">Name</th>
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-28">Method</th>
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px]">When</th>
+                <th className="w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {panel.phases.map((ph: any) => (
+                <tr key={ph.id} className="border-b border-line last:border-0">
+                  <td className="py-1 px-1.5"><input className="field !w-full !py-1" value={ph.name} onChange={(e) => update(ph.id, { name: e.target.value })} disabled={!canEdit} /></td>
+                  <td className="py-1 px-1.5">
+                    <select className="field !w-full !py-1 text-[12px]" value={ph.method} onChange={(e) => update(ph.id, { method: e.target.value })} disabled={!canEdit}>
+                      <option value="relative">Relative</option>
+                      <option value="duration">Duration</option>
+                      <option value="dates">Dates</option>
+                    </select>
+                  </td>
+                  <td className="py-1 px-1.5">
+                    {ph.method === "duration" && <input className="field !w-28 !py-1 text-[12px]" type="number" placeholder="weeks" value={ph.duration_weeks ?? ""} onChange={(e) => update(ph.id, { duration_weeks: parseFloat(e.target.value) || null })} disabled={!canEdit} />}
+                    {ph.method === "dates" && <div className="flex gap-1.5">
+                      <input className="field !w-36 !py-1 text-[12px]" type="date" value={ph.start_date ?? ""} onChange={(e) => update(ph.id, { start_date: e.target.value })} disabled={!canEdit} />
+                      <input className="field !w-36 !py-1 text-[12px]" type="date" value={ph.end_date ?? ""} onChange={(e) => update(ph.id, { end_date: e.target.value })} disabled={!canEdit} />
+                    </div>}
+                    {ph.method === "relative" && <span className="text-muted text-[12px]">—</span>}
+                  </td>
+                  <td className="py-1 px-1.5 text-center">
+                    {canEdit && <button className="text-muted hover:text-brand-orange-deep" title="Remove" onClick={() => remove(ph.id)}>×</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
+      )}
       {canEdit && (
         <div className="flex gap-1.5 mt-3">
           <input className="field !w-56" placeholder="Phase name (e.g. Discovery)" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />

@@ -76,6 +76,26 @@ export interface DeferralSuggestion {
   est_sprint_saving: number;
 }
 
+export interface ThreePoint {
+  realistic: number;
+  optimistic?: number | null;
+  pessimistic?: number | null;
+}
+
+export interface WorkItem {
+  id: string;
+  level: "epic" | "feature" | "story";
+  epic: string;
+  feature?: string | null;
+  story?: string | null;
+  parent_id?: string | null;
+  points: ThreePoint;
+  practice?: string | null;
+  discipline?: string | null;
+  tshirt?: string | null;
+  extraction_confidence: number;
+}
+
 export interface ContextEntry {
   id: string;
   tab: "requirements" | "risks" | "accelerators" | "assumptions";
@@ -125,7 +145,7 @@ export interface Graph {
   requirements: { id: string; text: string }[];
   capabilities: { id: string; name: string }[];
   components: Component[];
-  work_items: { id: string; feature?: string; epic: string }[];
+  work_items: WorkItem[];
   matched_pattern_ids: string[];
   ranked_matches: { pattern_id: string; score: number; rationale: string }[];
   team_plan: { roles: Role[]; monthly_cost?: number; total_cost?: number };
