@@ -122,7 +122,7 @@ export const api = {
 
   // --- Rate cards ---
   getRates: () =>
-    http<{ source: string; summary: { rows: number; disciplines: string[]; locations: string[] }; rates: { discipline: string; tier: string; location: string; day_rate: number }[] }>("/api/rates"),
+    http<{ source: string; summary: { rows: number; disciplines: string[]; locations: string[] }; practices: string[]; rates: { discipline: string; tier: string; location: string; day_rate: number }[] }>("/api/rates"),
   listRateCards: () =>
     http<{ id: string; name: string; is_default: boolean; is_active: boolean; summary: { rows: number; disciplines: string[]; locations: string[] } }[]>("/api/rate-cards"),
   createRateCard: (file: File, name: string) => {

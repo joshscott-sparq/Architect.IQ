@@ -465,9 +465,11 @@ def get_rates(user: User = Depends(get_current_user)) -> dict:
     from ..core.rates import RateCard
 
     rows, source = service.active_rates()
+    practices, _ = data_loader.load_practices()
     return {
         "source": source,
         "summary": RateCard(rows).summary(),
+        "practices": sorted({p for r in rows if (p := practices.practice_of(r.discipline))}),
         "rates": [
             {"discipline": r.discipline, "tier": r.tier, "location": r.location.value, "day_rate": r.day_rate}
             for r in rows

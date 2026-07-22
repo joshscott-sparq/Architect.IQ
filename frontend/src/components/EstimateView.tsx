@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { AiTier, DeferralSuggestion, EstimateResponse, Percentiles, TeamSuggestion, WorkItem } from "../types";
 import { MermaidDiagram } from "./MermaidDiagram";
@@ -69,6 +69,9 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
   const [tiers, setTiers] = useState<AiTier[]>([]);
   const [tierKey, setTierKey] = useState<string | null>(null);
   const [engineers, setEngineers] = useState(est.graph.team_plan.roles.filter((r) => r.discipline !== "Project & Program Management").length || 3);
+  const [practices, setPractices] = useState<string[]>([]);
+
+  useEffect(() => { api.getRates().then((r) => setPractices(r.practices)).catch(() => {}); }, []);
 
   useEffect(() => {
     api.listAiTiers().then((ts) => {
@@ -85,10 +88,30 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
   const [deferrals, setDeferrals] = useState<DeferralSuggestion[] | null>(null);
   const [showShare, setShowShare] = useState(false);
   const [items, setItems] = useState<WorkItem[]>(est.graph.work_items);
-  const [itemsDirty, setItemsDirty] = useState(false);
   const [savingItems, setSavingItems] = useState(false);
+  const itemsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextItemsSave = useRef(true);
 
-  useEffect(() => { setItems(est.graph.work_items); setItemsDirty(false); }, [est.estimate_id, est.version]);
+  useEffect(() => {
+    setItems(est.graph.work_items);
+    skipNextItemsSave.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [est.estimate_id, est.version]);
+
+  // Debounced auto-save, mirroring the Context Panel's auto-recalc: edits here
+  // are direct hand-edits to the work breakdown, not context to regenerate it.
+  useEffect(() => {
+    if (!canEdit) return;
+    if (skipNextItemsSave.current) { skipNextItemsSave.current = false; return; }
+    if (itemsTimer.current) clearTimeout(itemsTimer.current);
+    itemsTimer.current = setTimeout(async () => {
+      setSavingItems(true);
+      try { setEst(await api.updateGraph(est.estimate_id, { ...g, work_items: items })); }
+      finally { setSavingItems(false); }
+    }, 1000);
+    return () => { if (itemsTimer.current) clearTimeout(itemsTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   const g = est.graph;
   const mc = g.monte_carlo;
@@ -98,7 +121,6 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
 
   function updateItem(id: string, patch: Partial<WorkItem>) {
     setItems((prev) => prev.map((it) => it.id === id ? { ...it, ...patch } : it));
-    setItemsDirty(true);
   }
   function addItem() {
     setItems((prev) => [...prev, {
@@ -106,16 +128,9 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
       parent_id: null, phase_id: null, points: { realistic: 0 }, practice: null,
       cure: DEFAULT_CURE, extraction_confidence: 1.0,
     }]);
-    setItemsDirty(true);
   }
   function removeItem(id: string) {
     setItems((prev) => prev.filter((it) => it.id !== id && it.parent_id !== id));
-    setItemsDirty(true);
-  }
-  async function saveItems() {
-    setSavingItems(true);
-    try { setEst(await api.updateGraph(est.estimate_id, { ...g, work_items: items })); setItemsDirty(false); }
-    finally { setSavingItems(false); }
   }
 
   async function applyKnobs(boost = aiBoost) { setBusy("knobs"); try { setEst(await api.recompute(est.estimate_id, { ai_boost: boost, engineer_count: engineers })); } finally { setBusy(null); } }
@@ -211,8 +226,8 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
             const parentIds = new Set(items.map((w) => w.parent_id).filter(Boolean));
             const total = items.filter((w) => !parentIds.has(w.id)).reduce((sum, w) => sum + w.points.realistic, 0);
             return (
-              <Section title={<>Estimate <span className="normal-case tracking-normal text-muted">(work breakdown)</span></>} defaultOpen={false}
-                actions={canEdit ? <button className="btn text-[13px]" onClick={saveItems} disabled={!itemsDirty || savingItems}>{savingItems ? "Saving…" : "Save changes"}</button> : undefined}>
+              <Section title={<>Estimate <span className="normal-case tracking-normal text-muted">(work breakdown)</span></>}
+                actions={savingItems ? <span className="text-muted text-[12px]">Saving…</span> : undefined}>
                 <p className="text-muted text-[12px] mt-0 mb-2">
                   Estimate at the Epic, Feature, or Story level — the blank cells follow the same convention as the
                   legacy workbook. Link a row to a Phase to place it on the timeline.
@@ -276,7 +291,13 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                             ) : (phases.find((p) => p.id === wi.phase_id)?.name ?? "—")}
                           </td>
                           <td className={TD + " text-muted"}>
-                            {canEdit ? <input className="field !w-24 !py-1 text-[12px]" value={wi.practice ?? ""} onChange={(e) => updateItem(wi.id, { practice: e.target.value })} /> : (wi.practice ?? "—")}
+                            {canEdit ? (
+                              <select className="field !w-32 !py-1 text-[12px]" value={wi.practice ?? ""} onChange={(e) => updateItem(wi.id, { practice: e.target.value || null })}>
+                                <option value="">—</option>
+                                {wi.practice && !practices.includes(wi.practice) && <option value={wi.practice}>{wi.practice}</option>}
+                                {practices.map((p) => <option key={p} value={p}>{p}</option>)}
+                              </select>
+                            ) : (wi.practice ?? "—")}
                           </td>
                           {canEdit && <td className={TD + " text-center"}><button className="text-muted hover:text-brand-orange-deep" title="Remove" onClick={() => removeItem(wi.id)}>×</button></td>}
                         </tr>
