@@ -13,9 +13,13 @@ DECISIONS.md D11).
 
 `DECISIONS.md` is the log of every non-obvious judgment call made building this (why
 things are the way they are, what was explicitly flagged to the product owner and not
-yet resolved). Read it before assuming something is a bug rather than a deliberate
-tradeoff, and add an entry there — not just a code comment — for future non-obvious
-calls of your own.
+yet resolved). Before working in an area — and especially before "fixing" something
+that looks unfinished, inconsistent, or like a bug — grep `DECISIONS.md` for the
+module, file, or feature name you're about to touch. It's the difference between
+re-litigating a deliberate tradeoff (possibly one still flagged and awaiting owner
+input) and actually finding a bug. Add an entry there — not just a code comment — for
+future non-obvious calls of your own; D25 is a recent example of the shape (the call,
+the why, and what's deliberately left undone).
 
 ## Commands
 
@@ -113,6 +117,30 @@ Assumptions/External Sources) lives on the `SolutionGraph`. `PUT
 from Requirements entries (falling back to the graph's existing requirements if none),
 feeds risks/accelerators/assumptions/phases through `build_estimate()`, and saves in
 place — this is the auto-recalc the frontend debounces on every keystroke (D22).
+
+### Semantic kind classification (built, not yet wired to routing)
+
+`data/estimate_kinds.yaml` → `models/kinds.py::KindTaxonomy` defines 8 kinds a piece of
+extracted text can be: work items `epic`/`feature`/`story` (hierarchical — an epic
+groups by capability, a story is a single user-facing slice), `story_point` (a measure
+attached to a story/feature, never its own node), register items `risk`/`assumption`
+(disambiguated by a flip test: a wrong assumption invalidates the estimate, a risk is
+something you watch and mitigate), `accelerator` (a modifier that reduces effort/
+duration/risk on a work item), and `phase` (a timeline container — orthogonal to epic,
+not mutually exclusive; a work item can carry both an epic and a phase reference at
+once). Each kind carries a definition, pairwise disambiguation rules against its most
+confusable neighbor, and detection signals.
+
+`core/llm.py::classify_kind()` (LLM-primary, feeds the taxonomy's definitions/
+disambiguation straight into the prompt) and `heuristic_classify_kind()`
+(deterministic fallback: word-boundary signal matching, plus an explicit regex for the
+"As a ... I want ..." story template since that signal is a placeholder pattern, not
+literal text) score one sentence against the taxonomy, same LLM-primary-with-fallback
+shape as everything else in this file. **Nothing calls this yet** — dropping a file
+into the Requirements tab still only extracts requirements
+(`extract_new_requirements`/`heuristic_new_requirements`); routing classified
+sentences across Context Panel tabs or into the WorkItem hierarchy is a separate,
+larger decision deferred until asked for (D25).
 
 ### Auth, domain model, persistence
 
@@ -226,6 +254,12 @@ the last two tiers are ongoing maturity work, not one-time fixes.
   /api/estimates/{id}/recost` reprices the existing fixed team under a new rate
   card, but changing tier/location *mix* (not just re-pricing the same roles) is
   still a noted-for-later lever.
+- **Kind classifier (`classify_kind`, D25) isn't wired to any routing.** It can score a
+  sentence against the epic/feature/story/risk/assumption/accelerator/phase taxonomy,
+  but nothing calls it — dropped documents still only extract into Requirements.
+  Wiring it (auto-filing across Context Panel tabs, or into the WorkItem hierarchy) is
+  unstarted and needs UX decisions first (see D25's open questions on low-confidence
+  handling).
 
 ### 4. Calibration maturity (ongoing — memory loop exists, needs real volume)
 
