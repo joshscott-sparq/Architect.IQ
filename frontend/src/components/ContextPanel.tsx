@@ -5,6 +5,24 @@ import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSou
 let _seq = 0;
 const uid = () => `e${Date.now().toString(36)}${_seq++}`;
 
+// Render each duplicate directly beneath the entry it restates, instead of
+// wherever it happened to land in insertion order.
+function groupDuplicates(entries: ContextEntry[]): ContextEntry[] {
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const duplicatesOf = new Map<string, ContextEntry[]>();
+  const primaries: ContextEntry[] = [];
+  for (const e of entries) {
+    if (e.duplicate_of && byId.has(e.duplicate_of)) {
+      const list = duplicatesOf.get(e.duplicate_of) ?? [];
+      list.push(e);
+      duplicatesOf.set(e.duplicate_of, list);
+    } else {
+      primaries.push(e);
+    }
+  }
+  return primaries.flatMap((p) => [p, ...(duplicatesOf.get(p.id) ?? [])]);
+}
+
 const ENTRY_TABS = [
   { key: "requirements", label: "Requirements", scoped: false, hint: "What's being built — a PRD, feature list, or notes." },
   { key: "phases", label: "Phases", scoped: false, hint: "Stages of the effort (Discovery, MVP, V1)." },
@@ -152,26 +170,37 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
     setText("");
   }
 
-  // On the Requirements tab, dropped/fetched content gets decomposed into
-  // atomic requirements and compared against what's already listed, so a
-  // dropped doc adds several distinct new entries instead of one raw blob
-  // that restates things already captured. Other tabs keep the raw content
-  // as a single entry, as before.
+  // On the Requirements tab, a dropped/fetched document gets two things: one
+  // entry for the file/URL itself (content = a short summary, not the raw
+  // dump) and one entry per distinct feature/requirement found inside it,
+  // each checked against what's already listed. A candidate that substantially
+  // restates an existing entry is still added, but grouped with its match and
+  // tagged as a duplicate rather than silently added as a peer or dropped.
+  // Other tabs keep the raw content as a single entry, as before.
   async function addExtractedContent(sourceType: "file" | "url", reference: string, rawText: string) {
     if (tabKey !== "requirements" || !rawText.trim()) {
       onAdd(tabKey, { source_type: sourceType, reference, content: rawText });
       return;
     }
-    const existing = (entries as ContextEntry[]).map((e) => e.content).filter(Boolean);
+    const existingEntries = entries as ContextEntry[];
+    const existingTexts = existingEntries.map((e) => e.content).filter(Boolean);
     try {
-      const decomposed = await api.decomposeRequirements(rawText, existing);
-      if (decomposed.length === 0) {
-        onAdd(tabKey, { source_type: sourceType, reference, content: "No new requirements found — already covered by existing entries." });
-        return;
+      const [summary, decomposed] = await Promise.all([
+        api.summarizeDocument(rawText).then((r) => r.summary).catch(() => ""),
+        api.decomposeRequirements(rawText, existingTexts),
+      ]);
+      onAdd(tabKey, {
+        source_type: sourceType, reference,
+        content: summary || (decomposed.length === 0
+          ? "No new requirements found — already covered by existing entries."
+          : `Extracted ${decomposed.length} requirement${decomposed.length === 1 ? "" : "s"} below.`),
+      });
+      for (const d of decomposed) {
+        const match = d.duplicate_of ? existingEntries.find((e) => e.content === d.duplicate_of) : undefined;
+        onAdd(tabKey, { source_type: sourceType, reference, content: d.text, duplicate_of: match?.id ?? null });
       }
-      for (const d of decomposed) onAdd(tabKey, { source_type: sourceType, reference, content: d.text });
     } catch {
-      // Decomposition failed — keep the raw content rather than losing it.
+      // Extraction failed — keep the raw content rather than losing it.
       onAdd(tabKey, { source_type: sourceType, reference, content: rawText });
     }
   }
@@ -284,12 +313,13 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
               </tr>
             </thead>
             <tbody>
-              {entries.map((e: ContextEntry) => (
-                <tr key={e.id} className="border-b border-line last:border-0 align-top">
-                  <td className="py-1.5 px-2.5">
+              {groupDuplicates(entries).map((e: ContextEntry) => (
+                <tr key={e.id} className={"border-b border-line last:border-0 align-top" + (e.duplicate_of ? " bg-brand-orange/5" : "")}>
+                  <td className={"py-1.5 px-2.5" + (e.duplicate_of ? " pl-5" : "")}>
                     <span className={"badge " + (e.status === "error" ? "bg-orange-100 text-brand-orange-deep" : e.status === "processing" ? "bg-line text-muted" : "bg-brand-mint text-brand-sage")}>
                       {e.status === "processing" ? "…" : e.source_type}
                     </span>
+                    {e.duplicate_of && <span className="badge bg-brand-orange/15 text-brand-orange-deep block w-fit mt-1" title="Substantially restates the entry above">Duplicate</span>}
                     {e.reference && <div className="text-muted text-[11px] truncate mt-1" title={e.reference}>{e.reference}</div>}
                   </td>
                   <td className="py-1 px-1">

@@ -46,6 +46,10 @@ class ContextEntry(BaseModel):
     scope: str = Field(default=SCOPE_ESTIMATE, description="'estimate' or a phase id.")
     status: IngestStatus = IngestStatus.INGESTED
     created_at: str = ""
+    duplicate_of: str | None = Field(
+        default=None,
+        description="Id of an existing entry this substantially restates; grouped with it in the UI.",
+    )
 
 
 class PhaseMethod(str, Enum):

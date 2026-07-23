@@ -162,6 +162,11 @@ class DecomposedRequirement(BaseModel):
     text: str
     kind: str
     confidence: float
+    duplicate_of: str | None = None
+
+
+class SummarizeRequest(BaseModel):
+    text: str
 
 
 def _to_response(stored, references: list[Reference] | None = None) -> EstimateResponse:
@@ -254,11 +259,13 @@ async def extract_context(file: UploadFile = File(...), user: User = Depends(get
 
 @app.post("/api/context/decompose-requirements")
 def decompose_requirements(req: DecomposeRequirementsRequest, user: User = Depends(get_current_user)) -> list[DecomposedRequirement]:
-    """Break dropped/fetched text into atomic requirements not already covered.
+    """Break dropped/fetched text into atomic requirements, flagging near-duplicates.
 
     Used when new context lands on the Requirements tab: decompose the document
-    into distinct requirement statements and skip anything that substantively
-    duplicates an entry already in `existing` (the current Requirements list).
+    into distinct requirement statements, checking each against `existing` (the
+    current Requirements list). A substantive duplicate is still returned, with
+    `duplicate_of` set to the matching existing text, so the caller can group it
+    with its match and tag it rather than silently add or drop it.
     """
     from ..core import llm
 
@@ -272,6 +279,23 @@ def decompose_requirements(req: DecomposeRequirementsRequest, user: User = Depen
             pass
     items = llm.heuristic_new_requirements(req.text, req.existing)
     return [DecomposedRequirement(**it) for it in items]
+
+
+@app.post("/api/context/summarize")
+def summarize_document(req: SummarizeRequest, user: User = Depends(get_current_user)) -> dict:
+    """A short 1-2 sentence summary of dropped/fetched text, for the Requirements-tab
+    entry representing the source file/URL itself (distinct from the atomic
+    requirement entries `decompose-requirements` extracts from the same text)."""
+    from ..core import llm
+
+    if not req.text.strip():
+        return {"summary": ""}
+    if llm.available():
+        try:
+            return {"summary": llm.summarize_document(req.text)}
+        except Exception:  # noqa: BLE001 - fall back to the heuristic on any LLM error
+            pass
+    return {"summary": llm.heuristic_summarize(req.text)}
 
 
 _IMAGE_TYPES = {

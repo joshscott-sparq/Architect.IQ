@@ -111,6 +111,7 @@ export interface ContextEntry {
   scope: string; // "estimate" or a phase id
   status: "ingested" | "processing" | "error";
   created_at?: string;
+  duplicate_of?: string | null;
 }
 
 export interface ContextPhase {

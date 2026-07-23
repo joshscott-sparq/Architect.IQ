@@ -12,7 +12,7 @@ class FakeLLM:
     """Routes by prompt content to canned structured replies."""
 
     def complete_json(self, system, user, *, max_tokens=4000):
-        if "Extract the NEW requirements" in user:
+        if "Existing requirements already captured" in user:
             return {"requirements": [
                 {"text": "Grounded answers over the corpus", "kind": "functional", "confidence": 0.9},
                 {"text": "Supports multi-turn conversation", "kind": "functional", "confidence": 0.8},
@@ -83,27 +83,50 @@ def test_build_estimate_falls_back_without_llm():
     assert any("heuristic" in a for a in graph.assumptions)
 
 
-def test_extract_new_requirements_filters_duplicates_via_safety_net():
+def test_extract_new_requirements_tags_duplicates_via_safety_net():
     """Even if the model includes something already in `existing`, the
-    word-overlap safety net drops it — only the genuinely new item survives."""
+    word-overlap safety net tags it with its match rather than dropping it —
+    only the genuinely new item comes back with duplicate_of=None."""
     fake = FakeLLM()
     existing = ["Grounded answers over the corpus documents"]
     new = llm.extract_new_requirements("some dropped document text", existing, client=fake)
-    texts = [r["text"] for r in new]
-    assert texts == ["Supports multi-turn conversation"]
+    by_text = {r["text"]: r["duplicate_of"] for r in new}
+    assert by_text == {
+        "Grounded answers over the corpus": "Grounded answers over the corpus documents",
+        "Supports multi-turn conversation": None,
+    }
 
 
-def test_heuristic_new_requirements_decomposes_and_dedupes():
+def test_heuristic_new_requirements_decomposes_and_tags_duplicates():
     text = "- Grounded answers over the corpus\n- Supports multi-turn conversation\n- x"
     existing = ["Grounded answers over the corpus"]
     new = llm.heuristic_new_requirements(text, existing)
-    assert [r["text"] for r in new] == ["Supports multi-turn conversation"]
+    by_text = {r["text"]: r["duplicate_of"] for r in new}
+    assert by_text == {
+        "Grounded answers over the corpus": "Grounded answers over the corpus",
+        "Supports multi-turn conversation": None,
+    }
     # "- x" is too short (< 10 chars after stripping the bullet) to count.
 
 
-def test_is_duplicate_catches_paraphrases_by_word_overlap():
-    assert llm._is_duplicate("Grounded answers over the corpus", ["The corpus grounds answers over"])
-    assert not llm._is_duplicate("Supports multi-turn conversation", ["Grounded answers over the corpus"])
+def test_find_duplicate_catches_paraphrases_by_word_overlap():
+    assert llm._find_duplicate("Grounded answers over the corpus", ["The corpus grounds answers over"])
+    assert llm._find_duplicate("Supports multi-turn conversation", ["Grounded answers over the corpus"]) is None
+
+
+def test_summarize_document_heuristic_truncates():
+    long_text = "word " * 100
+    summary = llm.heuristic_summarize(long_text, max_len=50)
+    assert len(summary) <= 51  # allows the trailing ellipsis character
+    assert summary.endswith("…")
+
+
+def test_summarize_document_uses_llm_summary():
+    class FakeSummaryLLM:
+        def complete_json(self, system, user, *, max_tokens=4000):
+            return {"summary": "A short summary."}
+
+    assert llm.summarize_document("some long document text", client=FakeSummaryLLM()) == "A short summary."
 
 
 def test_llm_step_falls_back_on_error():

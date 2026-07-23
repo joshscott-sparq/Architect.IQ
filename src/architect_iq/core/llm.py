@@ -116,64 +116,94 @@ def _normalize_words(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", text.lower()))
 
 
-def _is_duplicate(candidate: str, existing: list[str], threshold: float = 0.6) -> bool:
-    """Word-overlap heuristic: True if `candidate` substantially restates an existing entry."""
+def _find_duplicate(candidate: str, existing: list[str], threshold: float = 0.6) -> str | None:
+    """Word-overlap heuristic: return the existing entry `candidate` substantially
+    restates (paraphrase or near-duplicate), or None if it looks distinct."""
     cand_words = _normalize_words(candidate)
     if not cand_words:
-        return True
+        return None
     for e in existing:
         e_words = _normalize_words(e)
         if not e_words:
             continue
         overlap = len(cand_words & e_words) / len(cand_words | e_words)
         if overlap >= threshold:
-            return True
-    return False
+            return e
+    return None
 
 
 def extract_new_requirements(text: str, existing: list[str], *, client: LLMClient | None = None) -> list[dict]:
-    """Decompose `text` (a dropped file or fetched URL) into atomic requirements,
-    excluding anything that substantively duplicates an entry already in `existing`
-    (e.g. what's already in the Context Panel's Requirements tab).
+    """Decompose `text` (a dropped file or fetched URL) into atomic requirements —
+    e.g. what's already in the Context Panel's Requirements tab.
 
-    Same [{text, kind, confidence}] shape as `extract_requirements`. A word-overlap
-    filter runs as a final safety net even on the LLM path, in case a near-duplicate
-    slips through the prompt.
+    Same [{text, kind, confidence}] shape as `extract_requirements`, plus
+    `duplicate_of`: the existing entry text this substantially restates, or None
+    if it looks like a genuinely new requirement. Callers group a duplicate with
+    its match and flag it rather than silently dropping it — a word-overlap
+    check runs even on the LLM path, in case a near-duplicate slips through.
     """
     existing_block = "\n".join(f"- {e}" for e in existing) if existing else "(none yet)"
     system = (
         "You are a senior delivery lead adding to an existing requirements list from a "
-        "newly dropped document. Decompose the document into distinct, atomic "
-        "requirements, and OMIT anything that substantively duplicates an existing "
-        "requirement below — paraphrases and near-duplicates count as duplicates."
+        "newly dropped document. Decompose the document into distinct, atomic requirements. "
+        "The existing list is shown for context only — a separate process handles duplicate "
+        "detection, so include EVERY requirement the document states, even ones that look "
+        "similar to or already covered by the existing list. Do not omit anything yourself."
     )
     user = (
-        f"Existing requirements already captured:\n{existing_block}\n\n"
-        "Extract the NEW requirements from the following document that are not already "
-        "covered above. For each, give the text, a kind (functional | non_functional | "
-        "constraint), and a confidence 0-1.\n\n"
+        f"Existing requirements already captured (context only — do not omit matches "
+        f"yourself):\n{existing_block}\n\n"
+        "Extract every requirement stated in the following document, including ones "
+        "similar to the existing list above. For each, give the text, a kind "
+        "(functional | non_functional | constraint), and a confidence 0-1.\n\n"
         'Return JSON: {"requirements": [{"text": str, "kind": str, "confidence": number}]}\n\n'
         f"Document:\n{text}"
     )
     data = _client(client).complete_json(system, user)
     items = _parse_requirement_items(data)
-    return [it for it in items if not _is_duplicate(it["text"], existing)]
+    for it in items:
+        it["duplicate_of"] = _find_duplicate(it["text"], existing)
+    return items
 
 
 _BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
 
 
 def heuristic_new_requirements(text: str, existing: list[str], max_items: int = 60) -> list[dict]:
-    """Deterministic fallback for extract_new_requirements: line-split + dedup filter."""
+    """Deterministic fallback for extract_new_requirements: line-split + tag duplicates."""
     out: list[dict] = []
     for line in text.splitlines():
         stripped = _BULLET.sub("", line).strip()
-        if len(stripped) < 10 or _is_duplicate(stripped, existing):
+        if len(stripped) < 10:
             continue
-        out.append({"text": stripped[:300], "kind": "functional", "confidence": 0.5})
+        out.append({
+            "text": stripped[:300], "kind": "functional", "confidence": 0.5,
+            "duplicate_of": _find_duplicate(stripped, existing),
+        })
         if len(out) >= max_items:
             break
     return out
+
+
+def summarize_document(text: str, *, client: LLMClient | None = None) -> str:
+    """A short 1-2 sentence summary of a dropped document, shown as the content
+    of the Requirements-tab entry for the file itself (distinct from the
+    decomposed requirement entries it also produces)."""
+    system = (
+        "You are a senior delivery lead. Summarize the following document in 1-2 "
+        "concise sentences for a teammate skimming a requirements list."
+    )
+    user = f'Document:\n{text[:8000]}\n\nReturn JSON: {{"summary": str}}'
+    data = _client(client).complete_json(system, user)
+    return str(data.get("summary", "")).strip()[:400]
+
+
+def heuristic_summarize(text: str, max_len: int = 240) -> str:
+    """Deterministic fallback for summarize_document: first non-empty line(s), truncated."""
+    stripped = " ".join(text.split())
+    if len(stripped) <= max_len:
+        return stripped
+    return stripped[:max_len].rsplit(" ", 1)[0] + "…"
 
 
 def rank_patterns(

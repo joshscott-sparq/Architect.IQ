@@ -86,20 +86,39 @@ def test_extract_pdf(client):
     assert "no extractable text" in resp.json()["text"]
 
 
-def test_decompose_requirements_dedupes_against_existing(client):
+def test_decompose_requirements_tags_duplicates_against_existing(client):
     text = "- Grounded answers over the corpus\n- Supports multi-turn conversation\n- x"
     resp = client.post("/api/context/decompose-requirements", json={
         "text": text, "existing": ["Grounded answers over the corpus"],
     })
     assert resp.status_code == 200, resp.text
     items = resp.json()
-    assert [it["text"] for it in items] == ["Supports multi-turn conversation"]
+    by_text = {it["text"]: it["duplicate_of"] for it in items}
+    assert by_text == {
+        "Grounded answers over the corpus": "Grounded answers over the corpus",
+        "Supports multi-turn conversation": None,
+    }
 
 
 def test_decompose_requirements_empty_text(client):
     resp = client.post("/api/context/decompose-requirements", json={"text": "   ", "existing": []})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_summarize_document(client):
+    text = "This document describes a system. " * 20
+    resp = client.post("/api/context/summarize", json={"text": text})
+    assert resp.status_code == 200, resp.text
+    summary = resp.json()["summary"]
+    assert summary
+    assert len(summary) < len(text)
+
+
+def test_summarize_document_empty_text(client):
+    resp = client.post("/api/context/summarize", json={"text": "   "})
+    assert resp.status_code == 200
+    assert resp.json() == {"summary": ""}
 
 
 def test_extract_pdf_rejects_garbage(client):
