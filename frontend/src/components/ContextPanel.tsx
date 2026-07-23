@@ -155,12 +155,44 @@ const SINGULAR: Record<string, string> = {
   requirements: "a requirement", risks: "a risk", accelerators: "an accelerator", assumptions: "an assumption",
 };
 
+// MIME types the backend's /api/context/extract has a real parser for
+// (docx/xlsx/csv/pdf/images/plain text) — everything else falls back to a
+// raw utf-8 decode there, which is a red flag for genuinely binary files.
+const APPROVED_FILE_MIME = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv", "application/csv", "application/vnd.ms-excel",
+  "application/pdf",
+  "text/plain", "text/markdown",
+  "image/png", "image/jpeg", "image/gif", "image/webp",
+]);
+
+// During dragover, browsers only expose each dragged item's kind/MIME — not
+// the filename — so this is a best-effort check. An empty/unrecognized MIME
+// (common for .md and .csv in some browsers) gets the benefit of the doubt.
+function isApprovedDrag(e: React.DragEvent): boolean {
+  const items = Array.from(e.dataTransfer.items ?? []);
+  const fileItems = items.filter((i) => i.kind === "file");
+  if (fileItems.length === 0) return true;
+  return fileItems.every((i) => !i.type || APPROVED_FILE_MIME.has(i.type));
+}
+
+// The Source column shows the file's extension rather than the literal
+// word "file" — e.g. "MD", "PDF", "XLSX" — so multiple dropped files read
+// distinctly at a glance.
+function sourceLabel(e: ContextEntry): string {
+  if (e.source_type !== "file" || !e.reference) return e.source_type;
+  const dot = e.reference.lastIndexOf(".");
+  return dot > 0 ? e.reference.slice(dot + 1).toUpperCase() : e.source_type;
+}
+
 function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope, onEdit, complexityFactors }: any) {
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [urlMode, setUrlMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [dragOk, setDragOk] = useState(true);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -237,8 +269,8 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
     <div>
       {canEdit && (
         <div
-          className={"relative rounded-2xl border bg-field transition-colors " + (drag ? "border-brand-orange" : "border-line focus-within:border-brand-orange/60")}
-          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          className={"relative rounded-2xl border bg-field transition-colors " + (drag ? (dragOk ? "border-brand-green" : "border-brand-orange-deep") : "border-line focus-within:border-brand-orange/60")}
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); setDragOk(isApprovedDrag(e)); }}
           onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
           onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
         >
@@ -278,8 +310,8 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
           </div>
           <input ref={fileRef} type="file" className="hidden" multiple onChange={(e) => addFiles(e.target.files)} />
           {drag && (
-            <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-brand-orange bg-brand-orange/10 flex items-center justify-center text-brand-orange font-medium pointer-events-none">
-              Drop file to add as context
+            <div className={"absolute inset-0 rounded-2xl border-2 border-dashed flex items-center justify-center font-medium pointer-events-none " + (dragOk ? "border-brand-green bg-brand-green/10 text-brand-green" : "border-brand-orange-deep bg-brand-orange-deep/10 text-brand-orange-deep")}>
+              {dragOk ? "Drop file to add as context" : "Unsupported file type"}
             </div>
           )}
         </div>
@@ -306,7 +338,7 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="text-muted bg-canvas">
-                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-16">Source</th>
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-40">Source</th>
                 <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px]">Content</th>
                 {scoped && <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-40">Scope</th>}
                 <th className="w-8"></th>
@@ -315,12 +347,14 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
             <tbody>
               {groupDuplicates(entries).map((e: ContextEntry) => (
                 <tr key={e.id} className={"border-b border-line last:border-0 align-top" + (e.duplicate_of ? " bg-brand-orange/5" : "")}>
-                  <td className={"py-1.5 px-2.5" + (e.duplicate_of ? " pl-5" : "")}>
-                    <span className={"badge " + (e.status === "error" ? "bg-orange-100 text-brand-orange-deep" : e.status === "processing" ? "bg-line text-muted" : "bg-brand-mint text-brand-sage")}>
-                      {e.status === "processing" ? "…" : e.source_type}
-                    </span>
+                  <td className={"py-1.5 px-2.5 max-w-0" + (e.duplicate_of ? " pl-5" : "")}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={"badge shrink-0 " + (e.status === "error" ? "bg-orange-100 text-brand-orange-deep" : e.status === "processing" ? "bg-line text-muted" : "bg-brand-mint text-brand-sage")}>
+                        {e.status === "processing" ? "…" : sourceLabel(e)}
+                      </span>
+                      {e.reference && <span className="text-muted text-[11px] truncate" title={e.reference}>{e.reference}</span>}
+                    </div>
                     {e.duplicate_of && <span className="badge bg-brand-orange/15 text-brand-orange-deep block w-fit mt-1" title="Substantially restates the entry above">Duplicate</span>}
-                    {e.reference && <div className="text-muted text-[11px] truncate mt-1" title={e.reference}>{e.reference}</div>}
                   </td>
                   <td className="py-1 px-1">
                     <textarea
