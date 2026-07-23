@@ -18,6 +18,8 @@ import os
 import re
 from typing import Protocol
 
+from ..models.kinds import KindTaxonomy
+
 # Latest Claude model suited to extraction/reasoning at good latency/cost.
 # Override with ARCHITECTIQ_LLM_MODEL.
 DEFAULT_MODEL = "claude-sonnet-5"
@@ -233,6 +235,85 @@ def _truncate(s: str, max_len: int) -> str:
     if len(s) <= max_len:
         return s
     return s[:max_len].rsplit(" ", 1)[0] + "…"
+
+
+def _kind_prompt_block(taxonomy: KindTaxonomy) -> str:
+    lines: list[str] = []
+    for k in taxonomy.kinds:
+        lines.append(f"- {k.name} ({k.role}): {k.definition.strip()}")
+        for d in k.disambiguation:
+            lines.append(f"  vs {d.against}: {d.distinction.strip()}")
+        if k.signals:
+            lines.append(f"  signals: {'; '.join(k.signals)}")
+    return "\n".join(lines)
+
+
+def classify_kind(text: str, taxonomy: KindTaxonomy, *, client: LLMClient | None = None) -> dict:
+    """Classify `text` (one extracted sentence/line) against the estimate-kind
+    taxonomy (data/estimate_kinds.yaml) — is it an epic, feature, story,
+    story_point, risk, assumption, accelerator, or phase?
+
+    Returns {"kind": str, "confidence": float, "rationale": str}. `kind` is
+    always one of taxonomy.names(); if the model returns something else
+    (hallucinated name, refusal, etc.), it falls back to "feature" — the
+    taxonomy's closest general "this is scope to build" kind.
+    """
+    names = taxonomy.names()
+    system = (
+        "You are a senior delivery lead filing a piece of text pulled from a source "
+        "document into the correct part of a project estimate. Classify it against "
+        "exactly one of the following kinds, using each kind's definition and its "
+        "pairwise distinctions to resolve ambiguity (the same underlying work item can "
+        "carry both an epic and a phase — they are not mutually exclusive):\n\n"
+        + _kind_prompt_block(taxonomy)
+    )
+    user = (
+        f"Text to classify:\n{text}\n\n"
+        f'Return JSON: {{"kind": one of {names}, "confidence": number 0-1, "rationale": str}}'
+    )
+    data = _client(client).complete_json(system, user)
+    kind = str(data.get("kind", "")).strip()
+    if kind not in names:
+        kind = "feature"
+    return {
+        "kind": kind,
+        "confidence": _clamp(data.get("confidence", 0.5)),
+        "rationale": str(data.get("rationale", "")).strip(),
+    }
+
+
+_USER_STORY_PATTERN = re.compile(r"^\s*as an?\s+.+?,?\s+i\s+want\b", re.IGNORECASE)
+
+
+def heuristic_classify_kind(text: str, taxonomy: KindTaxonomy) -> dict:
+    """Deterministic fallback for classify_kind: score each kind by how many of
+    its signal phrases appear (case-insensitive, word-boundary matched) in
+    `text`, picking the highest-scoring kind. Descriptive (non-literal)
+    signals simply never match, which is harmless — they just don't
+    contribute to the score. Defaults to "feature" when nothing scores above
+    zero. The "As a ... I want ..." story template is checked explicitly
+    first since its literal taxonomy signal is a placeholder, not real text
+    to substring-match against.
+    """
+    if _USER_STORY_PATTERN.search(text):
+        return {"kind": "story", "confidence": 0.7, "rationale": "matches the user-story template"}
+    lowered = text.lower()
+    best_kind = "feature"
+    best_score = 0
+    for k in taxonomy.kinds:
+        score = 0
+        for signal in k.signals:
+            pattern = r"\b" + re.escape(signal.lower()) + r"\b"
+            if re.search(pattern, lowered):
+                score += 1
+        if score > best_score:
+            best_score = score
+            best_kind = k.name
+    return {
+        "kind": best_kind,
+        "confidence": 0.4 if best_score else 0.2,
+        "rationale": "keyword match" if best_score else "no signals matched; defaulted to feature",
+    }
 
 
 def rank_patterns(

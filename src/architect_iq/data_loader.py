@@ -14,6 +14,7 @@ import yaml
 
 from .models.complexity import ComplexityFactor
 from .models.enums import Location, RiskSeverity
+from .models.kinds import KindDefinition, KindDisambiguation, KindTaxonomy
 from .models.pattern import ComponentSpec, IntegrationSpec, ParametricCost, Pattern
 from .models.practice import DisciplineConstraint, Practice, PracticeLibrary
 from .models.team import RateRow, Tier
@@ -118,6 +119,30 @@ def load_practices() -> tuple[PracticeLibrary, str]:
         for discipline, body in raw.get("discipline_constraints", {}).items()
     ]
     return PracticeLibrary(practices=practices, constraints=constraints), raw["version"]
+
+
+@lru_cache(maxsize=1)
+def load_estimate_kinds() -> tuple[KindTaxonomy, str]:
+    """Return (KindTaxonomy, version) — the semantic kind taxonomy used to
+    classify a piece of extracted text (core/llm.py::classify_kind)."""
+    raw = _read_yaml("estimate_kinds.yaml")
+    kinds = [
+        KindDefinition(
+            name=k["name"],
+            role=k["role"],
+            definition=k["definition"],
+            parent=k.get("parent"),
+            children=k.get("children", []),
+            carries=k.get("carries", []),
+            attribute_of=k.get("attribute_of", []),
+            modifies=k.get("modifies", []),
+            disambiguation=[KindDisambiguation(**d) for d in k.get("disambiguation", [])],
+            signals=k.get("signals", []),
+            placement=k.get("placement", ""),
+        )
+        for k in raw["kinds"]
+    ]
+    return KindTaxonomy(kinds=kinds), raw["version"]
 
 
 @lru_cache(maxsize=1)

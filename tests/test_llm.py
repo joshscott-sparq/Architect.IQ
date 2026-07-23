@@ -2,6 +2,7 @@
 plus deterministic fallback. No network."""
 
 from architect_iq.core import estimation, llm
+from architect_iq.data_loader import load_estimate_kinds
 from architect_iq.models.graph import EdgeKind
 from architect_iq.models.results import ClientContext
 
@@ -153,6 +154,52 @@ def test_summarize_document_uses_llm_summary():
             return {"summary": "A short summary."}
 
     assert llm.summarize_document("some long document text", client=FakeSummaryLLM()) == "A short summary."
+
+
+TAXONOMY, _ = load_estimate_kinds()
+
+
+def test_classify_kind_uses_llm_and_falls_back_on_bad_kind():
+    class FakeClassifyLLM:
+        def complete_json(self, system, user, *, max_tokens=4000):
+            return {"kind": "risk", "confidence": 0.9, "rationale": "expresses probability of harm"}
+
+    result = llm.classify_kind("The vendor may fail to deliver the API on time.", TAXONOMY, client=FakeClassifyLLM())
+    assert result == {"kind": "risk", "confidence": 0.9, "rationale": "expresses probability of harm"}
+
+    class HallucinatingLLM:
+        def complete_json(self, system, user, *, max_tokens=4000):
+            return {"kind": "not-a-real-kind", "confidence": 0.9, "rationale": "..."}
+
+    # An unrecognized kind name falls back to "feature", the taxonomy's
+    # closest general "this is scope to build" kind — never surfaced raw.
+    result = llm.classify_kind("something", TAXONOMY, client=HallucinatingLLM())
+    assert result["kind"] == "feature"
+
+
+def test_heuristic_classify_kind_matches_signals():
+    cases = {
+        "There is a risk the vendor may fail to deliver on time.": "risk",
+        "We assume the client will supply test data by kickoff.": "assumption",
+        "We have a reusable AI-assisted codegen framework for this.": "accelerator",
+        "Discovery phase runs sprints 1-3.": "phase",
+        "As a driver, I want to submit a DVIR so that compliance is tracked.": "story",
+    }
+    for text, expected in cases.items():
+        assert llm.heuristic_classify_kind(text, TAXONOMY)["kind"] == expected, text
+
+
+def test_heuristic_classify_kind_defaults_to_feature():
+    result = llm.heuristic_classify_kind("Bulk CSV export of maintenance records.", TAXONOMY)
+    assert result["kind"] == "feature"
+    assert result["confidence"] < 0.4
+
+
+def test_heuristic_classify_kind_avoids_short_signal_false_positives():
+    """"SP" is a signal for story_point, but must word-boundary match — it
+    shouldn't fire on ordinary words like "sprints" that merely contain it."""
+    result = llm.heuristic_classify_kind("Discovery phase runs sprints 1-3.", TAXONOMY)
+    assert result["kind"] != "story_point"
 
 
 def test_llm_step_falls_back_on_error():

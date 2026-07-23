@@ -12,6 +12,7 @@ from .graph import (
     Requirement,
     RequirementKind,
 )
+from .kinds import KindDefinition, KindDisambiguation, KindTaxonomy
 from .pattern import ComponentSpec, IntegrationSpec, ParametricCost, Pattern
 from .phase import Phase
 from .practice import DisciplineConstraint, Practice, PracticeLibrary
@@ -45,6 +46,9 @@ __all__ = [
     "Provenance",
     "Requirement",
     "RequirementKind",
+    "KindDefinition",
+    "KindDisambiguation",
+    "KindTaxonomy",
     "ComponentSpec",
     "IntegrationSpec",
     "ParametricCost",

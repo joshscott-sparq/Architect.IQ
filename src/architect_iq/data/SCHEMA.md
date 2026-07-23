@@ -12,6 +12,7 @@ version was used in the exported estimate model.
 | `complexity_factors.yaml` | RiskLookups!A44:C152 (§2.4) | Factor families, categories, severity ladders |
 | `practices.yaml` | §2.7 | Practice to discipline mapping, discipline tier constraints |
 | `tiers.yaml` | §2.6 (Code.gs) | Seniority tiers + weights, locations, priority disciplines |
+| `estimate_kinds.yaml` | owner-supplied taxonomy | Semantic kind taxonomy (epic/feature/story/story_point/risk/assumption/accelerator/phase) — definitions, disambiguation, and signals used to classify a piece of extracted text |
 | `pricing.example.yaml` | §2.6 (PriceListTable) | **Placeholder** day rates by discipline + tier + location |
 
 ## Pricing (PriceListTable) — schema

@@ -1,0 +1,159 @@
+# Semantic taxonomy for classifying a piece of extracted text as a kind of
+# estimate element (work item, register item, modifier, or timeline container).
+# Source: owner-supplied taxonomy (estimate_kinds.yaml, 2026-07-23).
+#
+# Two orthogonal grouping axes exist: capability (epic) and time (phase). A
+# single work item may carry BOTH an epic reference and a phase reference — do
+# not treat epic and phase as mutually exclusive when using this for routing.
+version: "1.0.0"
+source: "owner-supplied taxonomy, 2026-07-23"
+
+kinds:
+  - name: epic
+    role: work_item
+    definition: >-
+      A large body of work representing a major capability or business
+      outcome, decomposed into multiple features. Top of the work hierarchy.
+    parent: null
+    children: [feature]
+    disambiguation:
+      - against: feature
+        distinction: An epic is broader; a feature is a single function within it.
+      - against: phase
+        distinction: An epic groups by capability, a phase groups by time.
+    signals:
+      - Capability or outcome names (e.g. "Customer Onboarding", "Payments Platform")
+      - Heading with features nested beneath it
+      - Language implying many sprints of work
+    placement: Parent node. Features attach to it.
+
+  - name: feature
+    role: work_item
+    definition: >-
+      A distinct piece of functionality that delivers value on its own,
+      rolls up to an epic, and is decomposed into stories.
+    parent: epic
+    children: [story]
+    disambiguation:
+      - against: epic
+        distinction: A feature is narrower than an epic.
+      - against: story
+        distinction: A feature is a multi-story unit; it answers what the system does, not who needs what.
+    signals:
+      - Functional nouns (e.g. "Bulk Upload", "SSO Login", "Export to PDF")
+      - Positioned under an epic and above stories
+    placement: Child of an epic, parent of stories.
+
+  - name: story
+    role: work_item
+    definition: >-
+      A single unit of user-facing work, phrased from a user's perspective,
+      sized to complete within a sprint.
+    parent: feature
+    children: []
+    carries: [story_point]
+    disambiguation:
+      - against: feature
+        distinction: A story is a single user slice; a feature is larger and multi-story.
+      - against: story_point
+        distinction: A story is the work; a story point is the number attached to it.
+    signals:
+      - "As a [role], I want [action] so that [benefit]"
+      - Acceptance criteria
+      - A single interaction verb
+    placement: Child of a feature. Carries a story point value.
+
+  - name: story_point
+    role: measure
+    definition: >-
+      A unitless measure of relative effort, complexity, or uncertainty
+      assigned to a story or feature.
+    attribute_of: [story, feature]
+    disambiguation:
+      - against: story
+        distinction: A number sitting beside a story is a point value, not a new story.
+    signals:
+      - Bare integers or Fibonacci values (1, 2, 3, 5, 8, 13)
+      - "pts"
+      - "SP"
+      - A number in a sizing column
+    placement: Attribute of a story or feature. Never its own node.
+
+  - name: risk
+    role: register_item
+    definition: >-
+      A potential future event or condition that, if it occurs, would
+      negatively affect scope, cost, timeline, or quality.
+    disambiguation:
+      - against: assumption
+        distinction: >-
+          A risk is uncertain and harmful ("might happen, would hurt").
+          Test: if the statement expresses probability of harm, it is a risk.
+    signals:
+      - "risk"
+      - "may fail"
+      - "could delay"
+      - "dependency on"
+      - "if X does not happen"
+      - Probability or impact language
+      - Mitigation notes
+    placement: Own register. Linked to the scope items it threatens.
+
+  - name: assumption
+    role: register_item
+    definition: >-
+      A condition taken to be true for the purpose of building the estimate,
+      which if false would change scope, effort, or cost.
+    disambiguation:
+      - against: risk
+        distinction: >-
+          Flip test: a wrong assumption invalidates part of the estimate;
+          a risk is something you watch and mitigate.
+    signals:
+      - "assumes"
+      - "assuming"
+      - "provided that"
+      - "client will supply"
+      - "it is understood that"
+      - "we expect"
+    placement: Own register. Linked to the estimate elements that depend on it.
+
+  - name: accelerator
+    role: modifier
+    definition: >-
+      A tool, asset, pre-built component, or method (including AI) that
+      reduces the effort, duration, or risk of the work.
+    modifies: [feature, story, phase]
+    disambiguation:
+      - against: feature
+        distinction: >-
+          An accelerator is leverage applied to work, not scope to be built.
+          Test: if it reduces an estimate rather than adding to it, it is an accelerator.
+    signals:
+      - "accelerator"
+      - "reusable"
+      - "pre-built"
+      - "AI-assisted"
+      - "framework"
+      - "template"
+      - "codegen"
+      - Stated time or effort savings ("reduces effort by")
+    placement: Modifier applied to features, stories, or phases. May carry a reduction factor.
+
+  - name: phase
+    role: timeline_container
+    definition: >-
+      A time-bounded segment of the project timeline that groups work by
+      sequence or milestone.
+    disambiguation:
+      - against: epic
+        distinction: >-
+          A phase groups by time, an epic groups by capability.
+          The same work item can sit in one phase and one epic at once.
+    signals:
+      - "phase"
+      - "stage"
+      - "Discovery/Design/Build/Launch"
+      - Date ranges, sprint ranges ("Sprint 1-3")
+      - Milestone names, sequence ordering
+    placement: Timeline container. Work items map into it.

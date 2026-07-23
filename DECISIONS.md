@@ -56,6 +56,32 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D25. Kind-classification model built as a standalone function, not yet wired to routing
+**Call:** Added a semantic classifier (`core/llm.py::classify_kind` /
+`heuristic_classify_kind`) that takes one extracted sentence and scores it
+against an owner-supplied taxonomy (`data/estimate_kinds.yaml` →
+`models/kinds.py::KindTaxonomy`) of 8 kinds — epic/feature/story/story_point
+(work items), risk/assumption (register items), accelerator (modifier), and
+phase (timeline container) — each with a definition, pairwise disambiguation
+rules against confusable kinds, and keyword/pattern signals. Same
+LLM-primary-with-deterministic-fallback shape as `extract_new_requirements`:
+the LLM path uses the taxonomy's definitions/disambiguation verbatim as
+context; the heuristic path word-boundary-matches each kind's literal signals
+(with an explicit regex check for the "As a ... I want ..." story template,
+since that signal is a placeholder pattern, not real text to substring-match)
+and defaults to "feature" — the taxonomy's closest general "this is scope to
+build" kind — when nothing scores above zero. This function is intentionally
+**not yet called anywhere** — it's the classifier itself, not the routing that
+would use it (e.g. auto-filing a dropped document's sentences into
+Requirements/Risks/Accelerators/Assumptions tabs, or into the WorkItem
+epic/feature/story hierarchy, by kind). That's a separate, larger integration
+decision (it changes established per-tab drop behavior) deferred until asked
+for.
+**Why:** Owner asked "can you create the model" after supplying the taxonomy
+directly (`estimate_kinds.yaml`, 2026-07-23) — the ask was for the
+classification model itself, not (yet) for rewiring the Context Panel's
+extraction flow around it.
+
 ## D24. Estimate work breakdown is a directly hand-editable grid; complexity factors merged into Risks as read-only
 **Call:** The "Estimate (work breakdown)" section is now a full CRUD grid
 (Level/Epic/Feature/Story/Points R-O-P/Phase/Practice, add/remove rows) that

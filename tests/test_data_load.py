@@ -6,6 +6,7 @@ import pytest
 
 from architect_iq.data_loader import (
     load_complexity_factors,
+    load_estimate_kinds,
     load_practices,
     load_pricing,
     load_tiers,
@@ -109,6 +110,20 @@ def test_pricing_falls_back_to_example():
     assert source_file == "pricing.example.yaml"  # no local file committed
     assert version  # semver string present
     assert all(r.day_rate >= 0 for r in rows)
+
+
+def test_estimate_kinds_taxonomy_loads():
+    taxonomy, version = load_estimate_kinds()
+    assert version == "1.0.0"
+    assert taxonomy.names() == [
+        "epic", "feature", "story", "story_point", "risk", "assumption", "accelerator", "phase",
+    ]
+    epic = taxonomy.get("epic")
+    assert epic.role == "work_item"
+    assert epic.children == ["feature"]
+    assert any(d.against == "phase" for d in epic.disambiguation)
+    risk = taxonomy.get("risk")
+    assert "dependency on" in risk.signals
 
 
 def test_work_item_hierarchy_validation():
