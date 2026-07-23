@@ -285,17 +285,17 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                           </td>
                           <td className={TD}>
                             {canEdit
-                              ? <input type="number" className="field !w-16 !py-1 text-[12px]" value={wi.points.realistic} onChange={(e) => updateItem(wi.id, { points: { ...wi.points, realistic: parseFloat(e.target.value) || 0 } })} />
+                              ? <input type="number" className="field !w-16 !py-1 !px-2 text-[12px]" value={wi.points.realistic} onChange={(e) => updateItem(wi.id, { points: { ...wi.points, realistic: parseFloat(e.target.value) || 0 } })} />
                               : fmtPts(wi.points.realistic)}
                           </td>
                           <td className={TD + " text-muted"}>
                             {canEdit
-                              ? <input type="number" className="field !w-16 !py-1 text-[12px]" value={wi.points.optimistic ?? ""} placeholder={fmtPts(wi.points.realistic)} onChange={(e) => updateItem(wi.id, { points: { ...wi.points, optimistic: e.target.value === "" ? null : parseFloat(e.target.value) } })} />
+                              ? <input type="number" className="field !w-16 !py-1 !px-2 text-[12px]" value={wi.points.optimistic ?? ""} placeholder={fmtPts(wi.points.realistic)} onChange={(e) => updateItem(wi.id, { points: { ...wi.points, optimistic: e.target.value === "" ? null : parseFloat(e.target.value) } })} />
                               : fmtPts(wi.points.optimistic ?? wi.points.realistic)}
                           </td>
                           <td className={TD + " text-muted"}>
                             {canEdit
-                              ? <input type="number" className="field !w-16 !py-1 text-[12px]" value={wi.points.pessimistic ?? ""} placeholder={fmtPts(wi.points.realistic)} onChange={(e) => updateItem(wi.id, { points: { ...wi.points, pessimistic: e.target.value === "" ? null : parseFloat(e.target.value) } })} />
+                              ? <input type="number" className="field !w-16 !py-1 !px-2 text-[12px]" value={wi.points.pessimistic ?? ""} placeholder={fmtPts(wi.points.realistic)} onChange={(e) => updateItem(wi.id, { points: { ...wi.points, pessimistic: e.target.value === "" ? null : parseFloat(e.target.value) } })} />
                               : fmtPts(wi.points.pessimistic ?? wi.points.realistic)}
                           </td>
                           <td className={TD}>

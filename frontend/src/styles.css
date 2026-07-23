@@ -60,6 +60,18 @@ body {
 .mermaid-wrap { @apply overflow-x-auto rounded-lg p-3.5; background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas)); }
 .mermaid-wrap svg { max-width: 100%; height: auto; }
 
+/* Hide native number-input spin buttons — in dense grids (e.g. the work
+   breakdown's points columns) they overlap the last digit of a narrow
+   field, making it look clipped. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* Auto-height animated show/hide — grid-template-rows animates from 0fr to
    1fr, so content doesn't need a fixed/measured height to transition. Used
    for Section bodies, dropdown menus, and any other expand/collapse. */
