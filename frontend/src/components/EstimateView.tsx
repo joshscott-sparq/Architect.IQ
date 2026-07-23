@@ -142,6 +142,14 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
   function removeItem(id: string) {
     setItems((prev) => prev.filter((it) => it.id !== id && it.parent_id !== id));
   }
+  function duplicateItem(id: string) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.id === id);
+      if (idx === -1) return prev;
+      const copy: WorkItem = { ...prev[idx], id: wiUid() };
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+  }
 
   async function applyKnobs(boost = aiBoost) { setBusy("knobs"); try { setEst(await api.recompute(est.estimate_id, { ai_boost: boost, engineer_count: engineers })); } finally { setBusy(null); } }
   function selectTier(t: AiTier) { setTierKey(t.key); setAiBoost(t.ai_boost); applyKnobs(t.ai_boost); }
@@ -315,7 +323,12 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                               </select>
                             ) : (wi.practice ?? "—")}
                           </td>
-                          {canEdit && <td className={TD + " text-center"}><button className="text-muted hover:text-brand-orange-deep" title="Remove" onClick={() => removeItem(wi.id)}>×</button></td>}
+                          {canEdit && (
+                            <td className={TD + " text-center whitespace-nowrap"}>
+                              <button className="text-muted hover:text-ink mr-1.5" title="Duplicate row" onClick={() => duplicateItem(wi.id)}>⧉</button>
+                              <button className="text-muted hover:text-brand-orange-deep" title="Remove" onClick={() => removeItem(wi.id)}>×</button>
+                            </td>
+                          )}
                         </tr>
                         {expandedItems.has(wi.id) && (
                           <tr>
