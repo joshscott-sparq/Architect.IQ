@@ -109,6 +109,32 @@ def test_heuristic_new_requirements_decomposes_and_tags_duplicates():
     # "- x" is too short (< 10 chars after stripping the bullet) to count.
 
 
+def test_heuristic_new_requirements_skips_markdown_scaffolding():
+    """A dropped PRD's title/headings/metadata must not each become their own
+    fake "requirement" — only substantive lines should survive."""
+    text = (
+        "# Product Requirements Document: FleetOps Portal\n"
+        "**Document status:** Draft for estimation\n"
+        "**Version:** 0.9\n"
+        "## 1. Overview\n"
+        "FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots.\n"
+    )
+    new = llm.heuristic_new_requirements(text, [])
+    assert [r["text"] for r in new] == [
+        "FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots."
+    ]
+
+
+def test_summarize_document_heuristic_skips_markdown_scaffolding():
+    text = (
+        "# Product Requirements Document: FleetOps Portal\n"
+        "**Document status:** Draft for estimation\n"
+        "FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots.\n"
+    )
+    summary = llm.heuristic_summarize(text)
+    assert summary == "FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots."
+
+
 def test_find_duplicate_catches_paraphrases_by_word_overlap():
     assert llm._find_duplicate("Grounded answers over the corpus", ["The corpus grounds answers over"])
     assert llm._find_duplicate("Supports multi-turn conversation", ["Grounded answers over the corpus"]) is None

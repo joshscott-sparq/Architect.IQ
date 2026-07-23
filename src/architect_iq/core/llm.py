@@ -146,6 +146,8 @@ def extract_new_requirements(text: str, existing: list[str], *, client: LLMClien
     system = (
         "You are a senior delivery lead adding to an existing requirements list from a "
         "newly dropped document. Decompose the document into distinct, atomic requirements. "
+        "Ignore document scaffolding — titles, section headings, and metadata fields like "
+        "status/version/prepared-for — those are not requirements. "
         "The existing list is shown for context only — a separate process handles duplicate "
         "detection, so include EVERY requirement the document states, even ones that look "
         "similar to or already covered by the existing list. Do not omit anything yourself."
@@ -167,12 +169,28 @@ def extract_new_requirements(text: str, existing: list[str], *, client: LLMClien
 
 
 _BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+# Markdown structure that is never itself a requirement — a heading (# / ##)
+# or a document-metadata line (**Status:** Draft, **Version:** 0.9, ...).
+# Without filtering these, a dropped PRD's front matter explodes into one
+# junk "requirement" per heading/label instead of the real content.
+_HEADER = re.compile(r"^\s*#{1,6}\s+")
+_METADATA_LABEL = re.compile(r"^\s*\*\*[^*\n]+:\*\*")
+
+
+def _is_structural_noise(line: str) -> bool:
+    return bool(_HEADER.match(line) or _METADATA_LABEL.match(line))
 
 
 def heuristic_new_requirements(text: str, existing: list[str], max_items: int = 60) -> list[dict]:
-    """Deterministic fallback for extract_new_requirements: line-split + tag duplicates."""
+    """Deterministic fallback for extract_new_requirements: line-split + tag duplicates.
+
+    Skips markdown headings and metadata lines (title, status, version, ...)
+    so document scaffolding doesn't masquerade as a requirement.
+    """
     out: list[dict] = []
     for line in text.splitlines():
+        if _is_structural_noise(line):
+            continue
         stripped = _BULLET.sub("", line).strip()
         if len(stripped) < 10:
             continue
@@ -199,11 +217,22 @@ def summarize_document(text: str, *, client: LLMClient | None = None) -> str:
 
 
 def heuristic_summarize(text: str, max_len: int = 240) -> str:
-    """Deterministic fallback for summarize_document: first non-empty line(s), truncated."""
-    stripped = " ".join(text.split())
-    if len(stripped) <= max_len:
-        return stripped
-    return stripped[:max_len].rsplit(" ", 1)[0] + "…"
+    """Deterministic fallback for summarize_document: the first substantial line
+    of actual prose, skipping markdown headings/metadata, truncated. Falls back
+    to the whole (whitespace-collapsed) text if no such line is found."""
+    for line in text.splitlines():
+        if _is_structural_noise(line):
+            continue
+        stripped = _BULLET.sub("", line).strip()
+        if len(stripped) >= 30:
+            return _truncate(stripped, max_len)
+    return _truncate(" ".join(text.split()), max_len)
+
+
+def _truncate(s: str, max_len: int) -> str:
+    if len(s) <= max_len:
+        return s
+    return s[:max_len].rsplit(" ", 1)[0] + "…"
 
 
 def rank_patterns(
