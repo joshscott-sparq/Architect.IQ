@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { AiTier, DeferralSuggestion, EstimateResponse, Percentiles, TeamSuggestion, WorkItem } from "../types";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { Section } from "./Section";
 import { ShareControls } from "./ShareControls";
 import { CommentsSection } from "./CommentsSection";
+import { Spinner } from "./Spinner";
 
 let _wiSeq = 0;
 const wiUid = () => `wi${Date.now().toString(36)}${_wiSeq++}`;
@@ -89,6 +90,15 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
   const [showShare, setShowShare] = useState(false);
   const [items, setItems] = useState<WorkItem[]>(est.graph.work_items);
   const [savingItems, setSavingItems] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(id: string) {
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
   const itemsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextItemsSave = useRef(true);
 
@@ -175,7 +185,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
               )}
             </div>
           )}
-          {canClone && <button className="btn text-[13px]" onClick={clone} disabled={busy !== null}>{busy === "clone" ? "Cloning…" : "Clone"}</button>}
+          {canClone && <button className="btn text-[13px] inline-flex items-center gap-1.5" onClick={clone} disabled={busy !== null}>{busy === "clone" ? <><Spinner /> Cloning…</> : "Clone"}</button>}
           <label className="flex items-center gap-1.5 font-medium text-sm"><input type="checkbox" checked={oralsMode} onChange={(e) => setOralsMode(e.target.checked)} /> Client-safe</label>
         </div>
       </div>
@@ -227,17 +237,23 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
             const total = items.filter((w) => !parentIds.has(w.id)).reduce((sum, w) => sum + w.points.realistic, 0);
             return (
               <Section title={<>Estimate <span className="normal-case tracking-normal text-muted">(work breakdown)</span></>}
-                actions={savingItems ? <span className="text-muted text-[12px]">Saving…</span> : undefined}>
+                actions={savingItems ? <span className="text-muted text-[12px] inline-flex items-center gap-1.5 fade-in"><Spinner /> Saving…</span> : undefined}>
                 <p className="text-muted text-[12px] mt-0 mb-2">
                   Estimate at the Epic, Feature, or Story level — the blank cells follow the same convention as the
                   legacy workbook. Link a row to a Phase to place it on the timeline.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-[13px]">
-                    <thead><tr className="text-muted"><th className={TH}>Level</th><th className={TH}>Epic</th><th className={TH}>Feature</th><th className={TH}>Story</th><th className={TH}>Pts (R)</th><th className={TH}>O</th><th className={TH}>P</th><th className={TH}>Phase</th><th className={TH}>Practice</th>{canEdit && <th className={TH}></th>}</tr></thead>
+                    <thead><tr className="text-muted"><th className={TH}></th><th className={TH}>Level</th><th className={TH}>Epic</th><th className={TH}>Feature</th><th className={TH}>Story</th><th className={TH}>Pts (R)</th><th className={TH}>O</th><th className={TH}>P</th><th className={TH}>Phase</th><th className={TH}>Practice</th>{canEdit && <th className={TH}></th>}</tr></thead>
                     <tbody>
                       {items.map((wi) => (
-                        <tr key={wi.id}>
+                        <Fragment key={wi.id}>
+                        <tr>
+                          <td className={TD + " text-center"}>
+                            <button className="text-muted hover:text-ink w-5" title={expandedItems.has(wi.id) ? "Hide notes" : "Show notes"} onClick={() => toggleExpanded(wi.id)}>
+                              {expandedItems.has(wi.id) ? "▾" : "▸"}
+                            </button>
+                          </td>
                           <td className={TD}>
                             {canEdit ? (
                               <select className="field !w-24 !py-1 text-[12px]" value={wi.level}
@@ -301,10 +317,25 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                           </td>
                           {canEdit && <td className={TD + " text-center"}><button className="text-muted hover:text-brand-orange-deep" title="Remove" onClick={() => removeItem(wi.id)}>×</button></td>}
                         </tr>
+                        {expandedItems.has(wi.id) && (
+                          <tr>
+                            <td className={TD} colSpan={10 + (canEdit ? 1 : 0)}>
+                              <label className="text-muted text-[11px] uppercase block mb-1">Notes</label>
+                              <textarea
+                                className="w-full bg-transparent resize-none outline-none text-[13px] px-1.5 py-1 rounded border border-line focus:border-brand-orange/60 min-h-[60px]"
+                                placeholder="Detail or rationale for this line item…"
+                                value={wi.notes ?? ""}
+                                disabled={!canEdit}
+                                onChange={(e) => updateItem(wi.id, { notes: e.target.value })}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="font-semibold"><td className={TD} colSpan={4}>Total</td><td className={TD}>{pts(total)}</td><td className={TD}></td><td className={TD}></td><td className={TD}></td><td className={TD}></td>{canEdit && <td className={TD}></td>}</tr>
+                      <tr className="font-semibold"><td className={TD}></td><td className={TD} colSpan={4}>Total</td><td className={TD}>{pts(total)}</td><td className={TD}></td><td className={TD}></td><td className={TD}></td><td className={TD}></td>{canEdit && <td className={TD}></td>}</tr>
                     </tfoot>
                   </table>
                 </div>
@@ -361,13 +392,13 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                 <div className="flex justify-between text-[13px] font-semibold"><span>Engineers</span><span>{engineers}</span></div>
                 <input type="range" min={1} max={12} step={1} value={engineers} className="w-full accent-brand-orange" onChange={(e) => setEngineers(parseInt(e.target.value))} onMouseUp={() => applyKnobs()} onTouchEnd={() => applyKnobs()} />
               </div>
-              <button className="btn w-full mt-1" onClick={recost} disabled={busy !== null}>{busy === "recost" ? "Re-costing…" : "Re-cost with active rates"}</button>
-              {busy === "knobs" && <div className="text-muted text-sm mt-2">Recomputing…</div>}
+              <button className="btn w-full mt-1 inline-flex items-center justify-center gap-1.5" onClick={recost} disabled={busy !== null}>{busy === "recost" ? <><Spinner /> Re-costing…</> : "Re-cost with active rates"}</button>
+              {busy === "knobs" && <div className="text-muted text-sm mt-2 flex items-center gap-1.5 fade-in"><Spinner /> Recomputing…</div>}
             </Section>
           )}
 
           {subTab === "shape" && (scenarios.length > 0 || !readOnly) && (
-            <Section title="Staffing & development scenarios" actions={!readOnly ? <button className="btn text-[13px]" onClick={compareScenarios} disabled={busy !== null}>{busy === "scenarios" ? "Computing…" : "Compare models"}</button> : undefined}>
+            <Section title="Staffing & development scenarios" actions={!readOnly ? <button className="btn text-[13px] inline-flex items-center gap-1.5" onClick={compareScenarios} disabled={busy !== null}>{busy === "scenarios" ? <><Spinner /> Computing…</> : "Compare models"}</button> : undefined}>
               {scenarios.length === 0 ? (
                 <p className="text-muted text-[13px] m-0">Compare AI Tiers (1-5) and US / nearshore / blended staffing on the same scope.</p>
               ) : (
@@ -395,7 +426,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
 
           {subTab === "shape" && (
             <Section title={<>Optimization suggestions <span className="text-[11px] font-bold text-brand-sage bg-brand-aurora px-1.5 rounded ml-1.5">AI</span></>} defaultOpen={false}
-              actions={!readOnly ? <button className="btn text-[13px]" onClick={loadSuggestions} disabled={busy !== null}>{busy === "suggest" ? "Thinking…" : "Suggest"}</button> : undefined}>
+              actions={!readOnly ? <button className="btn text-[13px] inline-flex items-center gap-1.5" onClick={loadSuggestions} disabled={busy !== null}>{busy === "suggest" ? <><Spinner /> Thinking…</> : "Suggest"}</button> : undefined}>
               {!team && !deferrals ? (
                 <p className="text-muted text-[13px] m-0">Suggests team models that trade cost for speed and features to defer to a later release. Learns from past estimates.</p>
               ) : (

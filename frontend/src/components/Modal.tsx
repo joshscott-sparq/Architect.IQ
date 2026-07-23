@@ -12,8 +12,8 @@ export function Modal({ title, onClose, children }: { title: ReactNode; onClose:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className={"relative bg-surface border border-line rounded-2xl shadow-2xl flex flex-col " + (full ? "w-full h-full" : "w-full max-w-5xl max-h-[85vh]")}>
+      <div className="absolute inset-0 bg-black/50 fade-in" onClick={onClose} />
+      <div className={"relative bg-surface border border-line rounded-2xl shadow-2xl flex flex-col pop-in " + (full ? "w-full h-full" : "w-full max-w-5xl max-h-[85vh]")}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
           <div className="card-h mb-0 truncate">{title}</div>
           <div className="ml-auto flex items-center gap-1 shrink-0">

@@ -100,6 +100,7 @@ export interface WorkItem {
   };
   linked_factors?: LinkedFactor[];
   extraction_confidence: number;
+  notes?: string | null;
 }
 
 export interface ContextEntry {
@@ -141,6 +142,7 @@ export interface ContextPanel {
   assumptions: ContextEntry[];
   phases: ContextPhase[];
   external_sources: ExternalSource[];
+  pinned_work_items: WorkItem[];
 }
 
 export interface Graph {

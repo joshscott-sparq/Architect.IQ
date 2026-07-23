@@ -1,9 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSource, LinkedFactor, Reference } from "../types";
+import { Spinner } from "./Spinner";
+import type { ContextEntry, ContextPanel as Panel, EstimateResponse, ExternalSource, LinkedFactor, Reference, WorkItem } from "../types";
 
 let _seq = 0;
 const uid = () => `e${Date.now().toString(36)}${_seq++}`;
+let _wiSeq = 0;
+const wiUid = () => `wi${Date.now().toString(36)}${_wiSeq++}`;
+
+const DEFAULT_CURE = { complexity: 2, unknowns: 2, risks: 2, effort: 2, rationale: "Extracted from a dropped document.", confidence: 1.0 };
+
+// Where a classified item lands: epic/feature/story/story_point/phase (no
+// entry here) go to the estimate's work breakdown; everything else has its
+// own register tab, same as a manually-typed entry there.
+const TAB_BY_TAXONOMY_KIND: Record<string, "risks" | "assumptions" | "accelerators" | undefined> = {
+  risk: "risks", assumption: "assumptions", accelerator: "accelerators",
+};
+
+// The epic a work item groups under always describes what the feature(s)
+// are about (group_into_epics, batched over the whole drop so related items
+// cluster together) — never the source filename/URL. `d.title` is a short
+// name distinct from the full sentence; the full sentence becomes `notes` so
+// dropping detail into a terse grid cell doesn't lose it.
+function toWorkItem(d: { text: string; title: string; epic: string; taxonomy_kind: string; taxonomy_confidence: number }): WorkItem {
+  const base = {
+    id: wiUid(), parent_id: null, phase_id: null,
+    points: { realistic: 0 }, practice: null, notes: d.text,
+    cure: DEFAULT_CURE, extraction_confidence: d.taxonomy_confidence,
+  };
+  if (d.taxonomy_kind === "epic") return { ...base, level: "epic", epic: d.title, feature: null, story: null };
+  if (d.taxonomy_kind === "story") return { ...base, level: "story", epic: d.epic, feature: "Stories", story: d.title };
+  return { ...base, level: "feature", epic: d.epic, feature: d.title, story: null };
+}
 
 // Render each duplicate directly beneath the entry it restates, instead of
 // wherever it happened to land in insertion order.
@@ -62,6 +90,15 @@ export function ContextPanel({ estimateId, initial, references, complexityFactor
   const [saving, setSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstRun = useRef(true);
+  // Items classified from a dropped document (D25) go into panel state
+  // itself (pinned_work_items), not a one-shot request param — every
+  // recalculate_from_context call rebuilds work_items from scratch, so
+  // anything not re-sent as part of the panel on *every* save (the same way
+  // a Requirements entry is) would get silently discarded the next time any
+  // other Context Panel edit triggers this same debounced auto-recalc.
+  function queueWorkItems(items: WorkItem[]) {
+    setPanel((p) => ({ ...p, pinned_work_items: [...p.pinned_work_items, ...items] }));
+  }
 
   // Debounced auto-recalculate on any context change.
   useEffect(() => {
@@ -120,7 +157,7 @@ export function ContextPanel({ estimateId, initial, references, complexityFactor
             ))}
           </div>
           <div className="flex items-center gap-2 pl-2 shrink-0 border-l border-line">
-            {saving && <span className="text-[12px] text-muted hidden sm:inline">Recalculating…</span>}
+            {saving && <span className="text-[12px] text-muted hidden sm:inline-flex items-center gap-1.5 fade-in"><Spinner /> Recalculating…</span>}
             <button onClick={toggleCollapsed} className="text-muted hover:text-ink px-2 py-1" title={collapsed ? "Expand" : "Collapse"}>
               {collapsed ? "▲" : "▼"}
             </button>
@@ -139,6 +176,7 @@ export function ContextPanel({ estimateId, initial, references, complexityFactor
                 canEdit={canEdit}
                 onAdd={addEntry} onRemove={removeEntry} onScope={setScope} onEdit={editContent}
                 complexityFactors={tab === "risks" ? complexityFactors : undefined}
+                onQueueWorkItems={tab === "requirements" ? queueWorkItems : undefined}
               />
             )}
             {tab === "phases" && <PhasesTab panel={panel} setPanel={setPanel} canEdit={canEdit} />}
@@ -186,7 +224,7 @@ function sourceLabel(e: ContextEntry): string {
   return dot > 0 ? e.reference.slice(dot + 1).toUpperCase() : e.source_type;
 }
 
-function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope, onEdit, complexityFactors }: any) {
+function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRemove, onScope, onEdit, complexityFactors, onQueueWorkItems }: any) {
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [urlMode, setUrlMode] = useState(false);
@@ -202,13 +240,14 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
     setText("");
   }
 
-  // On the Requirements tab, a dropped/fetched document gets two things: one
-  // entry for the file/URL itself (content = a short summary, not the raw
-  // dump) and one entry per distinct feature/requirement found inside it,
-  // each checked against what's already listed. A candidate that substantially
-  // restates an existing entry is still added, but grouped with its match and
-  // tagged as a duplicate rather than silently added as a peer or dropped.
-  // Other tabs keep the raw content as a single entry, as before.
+  // On the Requirements tab, a dropped/fetched document gets exactly ONE
+  // entry — a 2-5 bullet summary of its key requirements/features, not the
+  // raw dump. Every distinct feature/requirement decomposed from it goes
+  // straight into the estimate's work breakdown as a line item instead, not
+  // into this list: a Feature by default, a Story if it reads as a
+  // decomposed sub-piece of one, an Epic if it groups multiple features
+  // (the semantic model, D25, picks the level; unrecognized/ambiguous kinds
+  // default to Feature). Other tabs keep the raw content as a single entry.
   async function addExtractedContent(sourceType: "file" | "url", reference: string, rawText: string) {
     if (tabKey !== "requirements" || !rawText.trim()) {
       onAdd(tabKey, { source_type: sourceType, reference, content: rawText });
@@ -221,16 +260,33 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
         api.summarizeDocument(rawText).then((r) => r.summary).catch(() => ""),
         api.decomposeRequirements(rawText, existingTexts),
       ]);
+
+      // Route each classified item to where it actually belongs — an
+      // epic/feature/story is scope to build (estimate work breakdown); a
+      // risk/assumption/accelerator belongs in its own register tab, exactly
+      // like a manually-typed entry there. Nothing stays in this Requirements
+      // list except the one summary entry added below.
+      const workItems: WorkItem[] = [];
+      const routedCounts: Record<string, number> = {};
+      for (const d of decomposed) {
+        const destTab = TAB_BY_TAXONOMY_KIND[d.taxonomy_kind];
+        if (destTab) {
+          onAdd(destTab, { source_type: sourceType, reference, content: d.text });
+          routedCounts[destTab] = (routedCounts[destTab] ?? 0) + 1;
+        } else {
+          workItems.push(toWorkItem(d));
+          routedCounts.estimate = (routedCounts.estimate ?? 0) + 1;
+        }
+      }
+      if (workItems.length > 0 && onQueueWorkItems) onQueueWorkItems(workItems);
+
+      const parts = Object.entries(routedCounts).map(([dest, n]) => `${n} to ${dest === "estimate" ? "the estimate" : dest}`);
       onAdd(tabKey, {
         source_type: sourceType, reference,
-        content: summary || (decomposed.length === 0
+        content: summary || (parts.length === 0
           ? "No new requirements found — already covered by existing entries."
-          : `Extracted ${decomposed.length} requirement${decomposed.length === 1 ? "" : "s"} below.`),
+          : `Added ${parts.join(", ")}.`),
       });
-      for (const d of decomposed) {
-        const match = d.duplicate_of ? existingEntries.find((e) => e.content === d.duplicate_of) : undefined;
-        onAdd(tabKey, { source_type: sourceType, reference, content: d.text, duplicate_of: match?.id ?? null });
-      }
     } catch {
       // Extraction failed — keep the raw content rather than losing it.
       onAdd(tabKey, { source_type: sourceType, reference, content: rawText });
@@ -285,7 +341,7 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
             <div className="flex gap-1.5 px-3 pb-2">
               <input className="field text-[13px]" placeholder="https://…" value={url} autoFocus
                 onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addFromUrl()} />
-              <button className="btn text-[12px]" onClick={addFromUrl} disabled={busy || !url.trim()}>{busy ? "Fetching…" : "Fetch"}</button>
+              <button className="btn text-[12px] inline-flex items-center gap-1.5" onClick={addFromUrl} disabled={busy || !url.trim()}>{busy ? <><Spinner /> Fetching…</> : "Fetch"}</button>
               <button className="text-muted px-2" onClick={() => { setUrlMode(false); setUrl(""); }}>×</button>
             </div>
           )}
@@ -339,7 +395,7 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
             <thead>
               <tr className="text-muted bg-canvas">
                 <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-40">Source</th>
-                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px]">Content</th>
+                <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px]">{tabKey === "requirements" ? "Content Summary" : "Content"}</th>
                 {scoped && <th className="text-left py-1.5 px-2.5 border-b border-line uppercase text-[11px] w-40">Scope</th>}
                 <th className="w-8"></th>
               </tr>
@@ -350,7 +406,7 @@ function EntryTab({ tabKey, entries, scoped, hint, phases, canEdit, onAdd, onRem
                   <td className={"py-1.5 px-2.5 max-w-0" + (e.duplicate_of ? " pl-5" : "")}>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className={"badge shrink-0 " + (e.status === "error" ? "bg-orange-100 text-brand-orange-deep" : e.status === "processing" ? "bg-line text-muted" : "bg-brand-mint text-brand-sage")}>
-                        {e.status === "processing" ? "…" : sourceLabel(e)}
+                        {e.status === "processing" ? <Spinner /> : sourceLabel(e)}
                       </span>
                       {e.reference && <span className="text-muted text-[11px] truncate" title={e.reference}>{e.reference}</span>}
                     </div>

@@ -206,29 +206,46 @@ def heuristic_new_requirements(text: str, existing: list[str], max_items: int = 
 
 
 def summarize_document(text: str, *, client: LLMClient | None = None) -> str:
-    """A short 1-2 sentence summary of a dropped document, shown as the content
-    of the Requirements-tab entry for the file itself (distinct from the
-    decomposed requirement entries it also produces)."""
+    """A 2-5 bullet summary of a dropped document's key requirements/features,
+    shown as the content of the Requirements-tab entry for the file itself
+    (distinct from the decomposed requirement entries it also produces). One
+    requirement/feature per bullet, "- " prefixed, e.g.:
+        - Ingestion and embedding pipelines run on databricks with a managed vector store
+        - Evaluation harness measures answer quality and guards against regressions
+    """
     system = (
-        "You are a senior delivery lead. Summarize the following document in 1-2 "
-        "concise sentences for a teammate skimming a requirements list."
+        "You are a senior delivery lead. Summarize the following document as 2-5 "
+        "concise bullet points capturing its key requirements or features, for a "
+        "teammate skimming a requirements list. One requirement or feature per bullet."
     )
-    user = f'Document:\n{text[:8000]}\n\nReturn JSON: {{"summary": str}}'
+    user = (
+        f"Document:\n{text[:8000]}\n\n"
+        'Return JSON: {"bullets": [str, str, ...]} with 2 to 5 items.'
+    )
     data = _client(client).complete_json(system, user)
-    return str(data.get("summary", "")).strip()[:400]
+    bullets = [str(b).strip() for b in data.get("bullets", []) if str(b).strip()][:5]
+    return "\n".join(f"- {b}" for b in bullets)
 
 
-def heuristic_summarize(text: str, max_len: int = 240) -> str:
-    """Deterministic fallback for summarize_document: the first substantial line
-    of actual prose, skipping markdown headings/metadata, truncated. Falls back
-    to the whole (whitespace-collapsed) text if no such line is found."""
+def heuristic_summarize(text: str, max_items: int = 5) -> str:
+    """Deterministic fallback for summarize_document: up to `max_items` of the
+    document's substantive lines (skipping markdown headings/metadata),
+    formatted as bullets. Falls back to a single truncated line if nothing
+    substantive is found.
+    """
+    bullets: list[str] = []
     for line in text.splitlines():
         if _is_structural_noise(line):
             continue
         stripped = _BULLET.sub("", line).strip()
-        if len(stripped) >= 30:
-            return _truncate(stripped, max_len)
-    return _truncate(" ".join(text.split()), max_len)
+        if len(stripped) < 30:
+            continue
+        bullets.append(_truncate(stripped, 200))
+        if len(bullets) >= max_items:
+            break
+    if not bullets:
+        return _truncate(" ".join(text.split()), 240)
+    return "\n".join(f"- {b}" for b in bullets)
 
 
 def _truncate(s: str, max_len: int) -> str:
@@ -253,9 +270,14 @@ def classify_kind(text: str, taxonomy: KindTaxonomy, *, client: LLMClient | None
     taxonomy (data/estimate_kinds.yaml) — is it an epic, feature, story,
     story_point, risk, assumption, accelerator, or phase?
 
-    Returns {"kind": str, "confidence": float, "rationale": str}. `kind` is
-    always one of taxonomy.names(); if the model returns something else
-    (hallucinated name, refusal, etc.), it falls back to "feature" — the
+    Also returns a short `title` (3-6 words) distinct from the full `text` —
+    callers use the title as the work-item's short name (grid cell) and keep
+    the full sentence as its notes, so detail from the source document isn't
+    lost just because the grid shows a terse label.
+
+    Returns {"kind": str, "confidence": float, "rationale": str, "title": str}.
+    `kind` is always one of taxonomy.names(); if the model returns something
+    else (hallucinated name, refusal, etc.), it falls back to "feature" — the
     taxonomy's closest general "this is scope to build" kind.
     """
     names = taxonomy.names()
@@ -269,17 +291,34 @@ def classify_kind(text: str, taxonomy: KindTaxonomy, *, client: LLMClient | None
     )
     user = (
         f"Text to classify:\n{text}\n\n"
-        f'Return JSON: {{"kind": one of {names}, "confidence": number 0-1, "rationale": str}}'
+        f'Return JSON: {{"kind": one of {names}, "confidence": number 0-1, "rationale": str, '
+        '"title": a short 3-6 word name for this item, distinct from the full text}'
     )
     data = _client(client).complete_json(system, user)
     kind = str(data.get("kind", "")).strip()
     if kind not in names:
         kind = "feature"
+    title = str(data.get("title", "")).strip() or _naive_title(text)
     return {
         "kind": kind,
         "confidence": _clamp(data.get("confidence", 0.5)),
         "rationale": str(data.get("rationale", "")).strip(),
+        "title": title,
     }
+
+
+def _naive_title(text: str, max_words: int = 6, max_len: int = 60) -> str:
+    """Heuristic short title: the first few words of `text`, trimmed of
+    boilerplate lead-ins ("The system must ...", "We need ...") that would
+    otherwise dominate every title."""
+    stripped = re.sub(
+        r"^\s*(the system (shall|must|will)|we need( to)?|the system should)\s+",
+        "", text.strip(), flags=re.IGNORECASE,
+    ).strip()
+    words = stripped.split()
+    title = " ".join(words[:max_words])
+    title = _truncate(title, max_len).rstrip(".")
+    return title[:1].upper() + title[1:] if title else text[:max_len]
 
 
 _USER_STORY_PATTERN = re.compile(r"^\s*as an?\s+.+?,?\s+i\s+want\b", re.IGNORECASE)
@@ -295,8 +334,9 @@ def heuristic_classify_kind(text: str, taxonomy: KindTaxonomy) -> dict:
     first since its literal taxonomy signal is a placeholder, not real text
     to substring-match against.
     """
+    title = _naive_title(text)
     if _USER_STORY_PATTERN.search(text):
-        return {"kind": "story", "confidence": 0.7, "rationale": "matches the user-story template"}
+        return {"kind": "story", "confidence": 0.7, "rationale": "matches the user-story template", "title": title}
     lowered = text.lower()
     best_kind = "feature"
     best_score = 0
@@ -313,7 +353,47 @@ def heuristic_classify_kind(text: str, taxonomy: KindTaxonomy) -> dict:
         "kind": best_kind,
         "confidence": 0.4 if best_score else 0.2,
         "rationale": "keyword match" if best_score else "no signals matched; defaulted to feature",
+        "title": title,
     }
+
+
+def group_into_epics(feature_texts: list[str], *, client: LLMClient | None = None) -> list[str]:
+    """Assign an epic (a short 2-6 word capability/theme name) to each item in
+    `feature_texts`, grouping related items under the same epic. Returns one
+    epic name per input, aligned by index.
+
+    This is a single batched call over the whole set rather than part of
+    classify_kind, because grouping is inherently cross-item — classifying
+    one sentence at a time can't know that "Ingestion pipeline" and "Embedding
+    pipeline" belong together, so per-item epic names would fragment instead
+    of clustering. The epic must relate to what the features actually are
+    about, not to the source document/filename they were extracted from.
+    """
+    if not feature_texts:
+        return []
+    numbered = "\n".join(f"{i}: {t}" for i, t in enumerate(feature_texts))
+    system = (
+        "You are a senior delivery lead organizing a flat list of features/stories into "
+        "epics. Group related items under the same short epic name (2-6 words, a "
+        "capability or theme, e.g. 'RAG Ingestion Pipeline', 'Claims Search'). An epic "
+        "must describe what the grouped features are about — never the name of a "
+        "source document or file. Every item needs an epic, including ones that stand alone."
+    )
+    user = (
+        f"Items (index: text):\n{numbered}\n\n"
+        'Return JSON: {"epics": [{"index": int, "epic": str}, ...]} — one entry per item above.'
+    )
+    data = _client(client).complete_json(system, user)
+    by_index = {int(e["index"]): str(e["epic"]).strip() for e in data.get("epics", []) if "index" in e}
+    return [by_index.get(i) or heuristic_group_into_epics(feature_texts)[i] for i in range(len(feature_texts))]
+
+
+def heuristic_group_into_epics(feature_texts: list[str]) -> list[str]:
+    """Deterministic fallback for group_into_epics. Real topic clustering
+    needs an LLM; without one, every item from the same batch shares one
+    generic epic — still related to the extracted features (not the source
+    filename), just not sub-grouped by theme."""
+    return ["Extracted Features" for _ in feature_texts]
 
 
 def rank_patterns(

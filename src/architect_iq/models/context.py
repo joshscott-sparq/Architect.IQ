@@ -13,6 +13,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from .work_item import WorkItem
+
 
 class ContextTab(str, Enum):
     REQUIREMENTS = "requirements"
@@ -109,6 +111,13 @@ class ContextPanel(BaseModel):
     assumptions: list[ContextEntry] = Field(default_factory=list)
     phases: list[ContextPhase] = Field(default_factory=list)
     external_sources: list[ExternalSource] = Field(default_factory=list)
+    pinned_work_items: list[WorkItem] = Field(
+        default_factory=list,
+        description="Work items (D25: classified epic/feature/story from a dropped document) "
+        "that the auto-recalc rebuild can't derive from the PRD text on its own. Persisted here "
+        "(not just appended once) so every subsequent recalc — which always rebuilds work_items "
+        "from scratch — re-applies them instead of silently discarding them.",
+    )
 
     def entries_for(self, tab: ContextTab) -> list[ContextEntry]:
         return getattr(self, tab.value)

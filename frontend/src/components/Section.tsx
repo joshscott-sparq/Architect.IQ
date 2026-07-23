@@ -33,8 +33,12 @@ export function Section({
           )}
         </div>
       </div>
-      {open && !expanded && <div className="mt-3">{children}</div>}
-      {expanded && <div className="mt-3 text-muted text-[13px]">Opened in a modal — close it to restore this panel.</div>}
+      {!expanded && (
+        <div className={"collapsible" + (open ? " open" : "")}>
+          <div className="mt-3">{children}</div>
+        </div>
+      )}
+      {expanded && <div className="mt-3 text-muted text-[13px] fade-in">Opened in a modal — close it to restore this panel.</div>}
       {expanded && <Modal title={title} onClose={() => setExpanded(false)}>{children}</Modal>}
     </div>
   );

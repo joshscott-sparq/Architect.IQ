@@ -100,6 +100,22 @@ def test_decompose_requirements_tags_duplicates_against_existing(client):
     }
 
 
+def test_decompose_requirements_includes_taxonomy_classification(client):
+    """Each decomposed item is also classified against the estimate-kind
+    taxonomy (D25) so the caller can route a real feature/epic/story into the
+    estimate's work breakdown instead of the plain Requirements list."""
+    text = "- As a driver, I want to submit a DVIR so that compliance is tracked."
+    resp = client.post("/api/context/decompose-requirements", json={"text": text, "existing": []})
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert items and all("taxonomy_kind" in it and "taxonomy_confidence" in it for it in items)
+    assert items[0]["taxonomy_kind"] == "story"
+    # title/epic (D25 follow-up): a short name distinct from the full text,
+    # and a grouping epic that describes the feature, not the source file.
+    assert items[0]["title"] and items[0]["title"] != items[0]["text"]
+    assert items[0]["epic"] and "." not in items[0]["epic"]
+
+
 def test_decompose_requirements_empty_text(client):
     resp = client.post("/api/context/decompose-requirements", json={"text": "   ", "existing": []})
     assert resp.status_code == 200

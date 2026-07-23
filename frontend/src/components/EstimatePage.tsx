@@ -4,8 +4,9 @@ import { api } from "../api";
 import type { ContextPanel as Panel, EstimateResponse } from "../types";
 import { ContextPanel } from "./ContextPanel";
 import { EstimateView } from "./EstimateView";
+import { Spinner } from "./Spinner";
 
-const EMPTY_PANEL: Panel = { requirements: [], risks: [], accelerators: [], assumptions: [], phases: [], external_sources: [] };
+const EMPTY_PANEL: Panel = { requirements: [], risks: [], accelerators: [], assumptions: [], phases: [], external_sources: [], pinned_work_items: [] };
 
 export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
   isClient: boolean;
@@ -42,7 +43,7 @@ export function EstimatePage({ isClient, ctxCollapsed, onToggleCtx }: {
   }, [id]);
 
   if (error) return <div className="text-brand-orange-deep text-[13px]">{error}</div>;
-  if (!current) return <div className="text-muted text-sm">Loading…</div>;
+  if (!current) return <div className="text-muted text-sm flex items-center gap-2 fade-in"><Spinner /> Loading…</div>;
 
   return (
     <div>

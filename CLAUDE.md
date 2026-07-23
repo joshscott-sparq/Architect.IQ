@@ -118,7 +118,7 @@ from Requirements entries (falling back to the graph's existing requirements if 
 feeds risks/accelerators/assumptions/phases through `build_estimate()`, and saves in
 place — this is the auto-recalc the frontend debounces on every keystroke (D22).
 
-### Semantic kind classification (built, not yet wired to routing)
+### Semantic kind classification drives Requirements-tab drop routing
 
 `data/estimate_kinds.yaml` → `models/kinds.py::KindTaxonomy` defines 8 kinds a piece of
 extracted text can be: work items `epic`/`feature`/`story` (hierarchical — an epic
@@ -132,15 +132,37 @@ once). Each kind carries a definition, pairwise disambiguation rules against its
 confusable neighbor, and detection signals.
 
 `core/llm.py::classify_kind()` (LLM-primary, feeds the taxonomy's definitions/
-disambiguation straight into the prompt) and `heuristic_classify_kind()`
-(deterministic fallback: word-boundary signal matching, plus an explicit regex for the
-"As a ... I want ..." story template since that signal is a placeholder pattern, not
-literal text) score one sentence against the taxonomy, same LLM-primary-with-fallback
-shape as everything else in this file. **Nothing calls this yet** — dropping a file
-into the Requirements tab still only extracts requirements
-(`extract_new_requirements`/`heuristic_new_requirements`); routing classified
-sentences across Context Panel tabs or into the WorkItem hierarchy is a separate,
-larger decision deferred until asked for (D25).
+disambiguation straight into the prompt, plus a short `title`) and
+`heuristic_classify_kind()` (deterministic fallback: word-boundary signal matching,
+plus an explicit regex for the "As a ... I want ..." story template) score one
+sentence against the taxonomy. A separate batched call, `group_into_epics()` (LLM) /
+`heuristic_group_into_epics()` (fallback: one generic epic per batch), clusters
+related features/stories under a shared epic name describing what they're about —
+never the source filename.
+
+`POST /api/context/decompose-requirements` (called when a file/URL lands on the
+Requirements tab) runs both: each returned item carries `taxonomy_kind`,
+`taxonomy_confidence`, `title`, and `epic` alongside the existing `duplicate_of`.
+The frontend (`ContextPanel.tsx::addExtractedContent`) routes by `taxonomy_kind` —
+`risk`/`assumption`/`accelerator` become an entry in that tab (exactly like typing
+one by hand); everything else (default `feature`, `story`/`epic` only when the model
+says so) becomes a `WorkItem` in the estimate's work breakdown, with `title` as the
+grid's short label and the full sentence preserved in `WorkItem.notes` (D26).
+Dropping a file now adds exactly **one** Requirements entry (a 2-5 bullet summary),
+not a decomposed pile — everything else goes to its real destination instead (D26).
+
+New `WorkItem`-routed items can't be appended to `graph.work_items` via a one-shot
+write: `service.recalculate_from_context()` (the Context Panel's debounced
+auto-recalc) always rebuilds `work_items` from scratch from the PRD text, so a
+separate append would get silently discarded the moment any *other* Context Panel
+edit triggers this same recalc again. They're persisted instead in
+`ContextPanel.pinned_work_items` — part of the panel, resent on every save — and
+`recalculate_from_context` re-appends that field after every rebuild, the same way
+a Requirements entry's own text survives repeated recalcs. This durability gap is
+still open for D24's hand-editable grid, though: editing a row there, then editing
+any Context Panel field, discards the hand-edit the same way `pinned_work_items`
+was built to avoid — not solved by D26, since those edits don't have a taxonomy
+kind to route through this same mechanism.
 
 ### Auth, domain model, persistence
 
@@ -254,12 +276,12 @@ the last two tiers are ongoing maturity work, not one-time fixes.
   /api/estimates/{id}/recost` reprices the existing fixed team under a new rate
   card, but changing tier/location *mix* (not just re-pricing the same roles) is
   still a noted-for-later lever.
-- **Kind classifier (`classify_kind`, D25) isn't wired to any routing.** It can score a
-  sentence against the epic/feature/story/risk/assumption/accelerator/phase taxonomy,
-  but nothing calls it — dropped documents still only extract into Requirements.
-  Wiring it (auto-filing across Context Panel tabs, or into the WorkItem hierarchy) is
-  unstarted and needs UX decisions first (see D25's open questions on low-confidence
-  handling).
+- **`pinned_work_items` durability fix (D26) doesn't cover D24's hand-editable grid.**
+  Editing a work-item row directly, then editing any Context Panel field, still
+  discards the hand-edit — the same rebuild-from-scratch problem D26 solved for
+  classifier-routed items, but hand-edits have no taxonomy kind to route through
+  that mechanism. Needs its own fix (e.g. a general "manually touched, don't
+  regenerate" flag per WorkItem) if this bites in practice.
 
 ### 4. Calibration maturity (ongoing — memory loop exists, needs real volume)
 

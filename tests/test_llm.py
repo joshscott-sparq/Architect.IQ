@@ -131,9 +131,13 @@ def test_summarize_document_heuristic_skips_markdown_scaffolding():
         "# Product Requirements Document: FleetOps Portal\n"
         "**Document status:** Draft for estimation\n"
         "FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots.\n"
+        "We need a web and mobile application that centralizes preventive maintenance scheduling.\n"
     )
     summary = llm.heuristic_summarize(text)
-    assert summary == "FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots."
+    assert summary == (
+        "- FleetOps operates a mixed fleet of 450 vehicles across 12 regional depots.\n"
+        "- We need a web and mobile application that centralizes preventive maintenance scheduling."
+    )
 
 
 def test_find_duplicate_catches_paraphrases_by_word_overlap():
@@ -141,19 +145,33 @@ def test_find_duplicate_catches_paraphrases_by_word_overlap():
     assert llm._find_duplicate("Supports multi-turn conversation", ["Grounded answers over the corpus"]) is None
 
 
-def test_summarize_document_heuristic_truncates():
-    long_text = "word " * 100
-    summary = llm.heuristic_summarize(long_text, max_len=50)
-    assert len(summary) <= 51  # allows the trailing ellipsis character
-    assert summary.endswith("…")
+def test_summarize_document_heuristic_caps_at_max_items():
+    text = "\n".join(f"This is a substantial requirement line number {i} of the document." for i in range(10))
+    summary = llm.heuristic_summarize(text, max_items=3)
+    assert summary.count("\n- ") == 2  # 3 bullets total: one leading "- " plus two "\n- "
+    assert summary.startswith("- ")
 
 
-def test_summarize_document_uses_llm_summary():
+def test_summarize_document_heuristic_falls_back_to_truncated_blob_when_nothing_substantive():
+    summary = llm.heuristic_summarize("hi\nok\n")
+    assert not summary.startswith("- ")
+
+
+def test_summarize_document_uses_llm_bullets():
     class FakeSummaryLLM:
         def complete_json(self, system, user, *, max_tokens=4000):
-            return {"summary": "A short summary."}
+            return {"bullets": [
+                "Ingestion and embedding pipelines run on databricks with a managed vector store",
+                "Evaluation harness measures answer quality and guards against regressions",
+                "Web chat UI for the adjuster team with feedback capture",
+            ]}
 
-    assert llm.summarize_document("some long document text", client=FakeSummaryLLM()) == "A short summary."
+    summary = llm.summarize_document("some long document text", client=FakeSummaryLLM())
+    assert summary == (
+        "- Ingestion and embedding pipelines run on databricks with a managed vector store\n"
+        "- Evaluation harness measures answer quality and guards against regressions\n"
+        "- Web chat UI for the adjuster team with feedback capture"
+    )
 
 
 TAXONOMY, _ = load_estimate_kinds()
@@ -165,7 +183,8 @@ def test_classify_kind_uses_llm_and_falls_back_on_bad_kind():
             return {"kind": "risk", "confidence": 0.9, "rationale": "expresses probability of harm"}
 
     result = llm.classify_kind("The vendor may fail to deliver the API on time.", TAXONOMY, client=FakeClassifyLLM())
-    assert result == {"kind": "risk", "confidence": 0.9, "rationale": "expresses probability of harm"}
+    assert result["kind"] == "risk" and result["confidence"] == 0.9 and result["rationale"] == "expresses probability of harm"
+    assert result["title"]  # falls back to a naive title when the model doesn't supply one
 
     class HallucinatingLLM:
         def complete_json(self, system, user, *, max_tokens=4000):
@@ -200,6 +219,29 @@ def test_heuristic_classify_kind_avoids_short_signal_false_positives():
     shouldn't fire on ordinary words like "sprints" that merely contain it."""
     result = llm.heuristic_classify_kind("Discovery phase runs sprints 1-3.", TAXONOMY)
     assert result["kind"] != "story_point"
+
+
+def test_group_into_epics_uses_llm_clustering():
+    class FakeEpicLLM:
+        def complete_json(self, system, user, *, max_tokens=4000):
+            return {"epics": [
+                {"index": 0, "epic": "RAG Ingestion Pipeline"},
+                {"index": 1, "epic": "RAG Ingestion Pipeline"},
+                {"index": 2, "epic": "Claims Search"},
+            ]}
+
+    texts = ["Ingestion pipeline on Databricks", "Embedding pipeline on Databricks", "Search prior claims"]
+    epics = llm.group_into_epics(texts, client=FakeEpicLLM())
+    assert epics == ["RAG Ingestion Pipeline", "RAG Ingestion Pipeline", "Claims Search"]
+
+
+def test_heuristic_group_into_epics_is_not_filename_derived():
+    """Without an LLM, real topic clustering isn't possible — but the
+    fallback must still describe the extracted features, never the source
+    document/filename they came from."""
+    epics = llm.heuristic_group_into_epics(["a", "b", "c"])
+    assert epics == ["Extracted Features", "Extracted Features", "Extracted Features"]
+    assert all("." not in e and "/" not in e for e in epics)  # not a filename
 
 
 def test_llm_step_falls_back_on_error():

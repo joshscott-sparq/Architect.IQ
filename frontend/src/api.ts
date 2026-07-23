@@ -118,7 +118,10 @@ export const api = {
     return http<{ filename: string; text: string }>("/api/context/extract", { method: "POST", body: form });
   },
   decomposeRequirements: (text: string, existing: string[]) =>
-    http<{ text: string; kind: string; confidence: number; duplicate_of: string | null }[]>("/api/context/decompose-requirements", jsonBody({ text, existing })),
+    http<{
+      text: string; kind: string; confidence: number; duplicate_of: string | null;
+      taxonomy_kind: string; taxonomy_confidence: number; title: string; epic: string;
+    }[]>("/api/context/decompose-requirements", jsonBody({ text, existing })),
   summarizeDocument: (text: string) => http<{ summary: string }>("/api/context/summarize", jsonBody({ text })),
 
   // --- Rate cards ---

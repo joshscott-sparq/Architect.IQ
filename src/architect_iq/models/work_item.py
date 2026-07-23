@@ -92,6 +92,9 @@ class WorkItem(BaseModel):
     discipline: str | None = Field(
         default=None, description="Assigned discipline (§2.7)."
     )
+    notes: str | None = Field(
+        default=None, description="Free-text detail/rationale for this row, hidden by default in the UI."
+    )
     linked_factors: list[LinkedFactor] = Field(
         default_factory=list,
         description="Item-scoped complexity/risk factors (§2.1).",

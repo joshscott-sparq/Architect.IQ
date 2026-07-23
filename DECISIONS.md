@@ -56,6 +56,44 @@ factor families" but the prose enumerates ~29 depending on how compound entries
 **Why:** Needs the workbook family list to reconcile exactly. FLAGGED to owner.
 Correcting is a data edit. Ref §2.4.
 
+## D26. D25's classifier wired to routing; pinned_work_items to survive rebuild-from-scratch recalcs
+**Call:** Wired D25's `classify_kind` into the Requirements-tab drop flow (previously
+deferred). Dropping a file/URL now: (1) adds exactly one Requirements entry — a
+2-5 bullet summary of the document, not the raw dump or a per-sentence list; (2)
+classifies every decomposed sentence and routes it — `risk`/`assumption`/
+`accelerator` become an entry in that tab (same as typing one by hand), `epic`/
+`feature`/`story`/anything else become a work-item line in the Estimate grid
+(default `feature`; `story` only via the "As a... I want..." template or an
+explicit epic/story classification; `epic` only when the model says so). A
+batched `group_into_epics` call clusters related features under a shared epic
+name describing what they're about — never the source filename. Each item's
+short `title` becomes the grid cell; the full original sentence is preserved in
+the new `WorkItem.notes` field so detail isn't lost to a terse label.
+
+Getting the routed work items to actually *stick* required a second fix:
+`recalculate_from_context` (the Context Panel's debounced auto-recalc) always
+rebuilds `work_items` from scratch from the PRD text — it has no way to know
+about a manually-classified item that isn't derivable from that text. Appending
+such items in the one save that added them isn't enough: the very next
+Context Panel edit (anywhere — a different tab, a different field) triggers
+this same recalc again and silently discards them, since a fresh rebuild has
+no memory of the previous one's append. Fixed by storing them in a new,
+persisted `ContextPanel.pinned_work_items` field instead of a one-shot request
+param — every recalc re-appends `panel.pinned_work_items` after rebuilding, so
+they survive any number of subsequent unrelated saves, the same way a
+Requirements entry itself does (it's part of the panel that's resent every
+time). Verified via a live test: dropped a PRD, then made a second, unrelated
+edit (added an assumption) — the work-item count held steady across both saves
+and a full page reload.
+**Why:** Owner asked for the routing (previously D25 left as a deferred
+decision) and specifically named the epic-naming/notes-preservation and
+risk/accelerator/assumption-routing requirements across several follow-up
+messages. The rebuild-discards-manual-items tension is a known pre-existing
+gap (also affects D24's hand-editable grid — editing a row, then editing any
+Context Panel field, discards the hand-edit the same way) that `pinned_work_items`
+solves only for classifier-routed items, not general hand-edits; flagged as a
+remaining gap, not solved here.
+
 ## D25. Kind-classification model built as a standalone function, not yet wired to routing
 **Call:** Added a semantic classifier (`core/llm.py::classify_kind` /
 `heuristic_classify_kind`) that takes one extracted sentence and scores it

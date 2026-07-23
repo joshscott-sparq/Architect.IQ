@@ -59,3 +59,43 @@ body {
 
 .mermaid-wrap { @apply overflow-x-auto rounded-lg p-3.5; background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas)); }
 .mermaid-wrap svg { max-width: 100%; height: auto; }
+
+/* Auto-height animated show/hide — grid-template-rows animates from 0fr to
+   1fr, so content doesn't need a fixed/measured height to transition. Used
+   for Section bodies, dropdown menus, and any other expand/collapse. */
+.collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  overflow: hidden;
+  transition: grid-template-rows 220ms ease, opacity 160ms ease;
+}
+.collapsible.open { grid-template-rows: 1fr; opacity: 1; }
+.collapsible > div { overflow: hidden; min-height: 0; }
+
+/* Fade + slight scale/lift-in for popovers, dropdown menus, modals. */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pop-in { animation: pop-in 140ms ease-out; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fade-in 160ms ease-out; }
+
+/* Small inline spinner for "this is going to take a moment" states. Sized
+   and colored via font-size/color on the element or an ancestor. */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}

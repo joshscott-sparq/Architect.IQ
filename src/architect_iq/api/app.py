@@ -163,6 +163,10 @@ class DecomposedRequirement(BaseModel):
     kind: str
     confidence: float
     duplicate_of: str | None = None
+    taxonomy_kind: str
+    taxonomy_confidence: float
+    title: str
+    epic: str
 
 
 class SummarizeRequest(BaseModel):
@@ -259,13 +263,21 @@ async def extract_context(file: UploadFile = File(...), user: User = Depends(get
 
 @app.post("/api/context/decompose-requirements")
 def decompose_requirements(req: DecomposeRequirementsRequest, user: User = Depends(get_current_user)) -> list[DecomposedRequirement]:
-    """Break dropped/fetched text into atomic requirements, flagging near-duplicates.
+    """Break dropped/fetched text into atomic requirements, flagging near-duplicates
+    and classifying each against the estimate-kind taxonomy.
 
     Used when new context lands on the Requirements tab: decompose the document
     into distinct requirement statements, checking each against `existing` (the
     current Requirements list). A substantive duplicate is still returned, with
     `duplicate_of` set to the matching existing text, so the caller can group it
-    with its match and tag it rather than silently add or drop it.
+    with its match and tag it rather than silently add or drop it. Each item also
+    carries `taxonomy_kind`/`taxonomy_confidence` (D25's classify_kind), a short
+    `title` distinct from the full `text` (so a caller can show the title and
+    keep the full text as notes — detail isn't lost just because the grid shows
+    a terse label), and an `epic` grouping items by what they're about (never by
+    source filename) so the caller can route a genuine epic/feature/story
+    straight into the estimate's work breakdown instead of adding it as a plain
+    requirement entry.
     """
     from ..core import llm
 
@@ -274,10 +286,29 @@ def decompose_requirements(req: DecomposeRequirementsRequest, user: User = Depen
     if llm.available():
         try:
             items = llm.extract_new_requirements(req.text, req.existing)
-            return [DecomposedRequirement(**it) for it in items]
         except Exception:  # noqa: BLE001 - fall back to the heuristic on any LLM error
-            pass
-    items = llm.heuristic_new_requirements(req.text, req.existing)
+            items = llm.heuristic_new_requirements(req.text, req.existing)
+    else:
+        items = llm.heuristic_new_requirements(req.text, req.existing)
+
+    taxonomy, _ = data_loader.load_estimate_kinds()
+    for it in items:
+        try:
+            classified = llm.classify_kind(it["text"], taxonomy) if llm.available() else llm.heuristic_classify_kind(it["text"], taxonomy)
+        except Exception:  # noqa: BLE001 - fall back to the heuristic on any LLM error
+            classified = llm.heuristic_classify_kind(it["text"], taxonomy)
+        it["taxonomy_kind"] = classified["kind"]
+        it["taxonomy_confidence"] = classified["confidence"]
+        it["title"] = classified["title"]
+
+    texts = [it["text"] for it in items]
+    try:
+        epics = llm.group_into_epics(texts) if llm.available() else llm.heuristic_group_into_epics(texts)
+    except Exception:  # noqa: BLE001 - fall back to the heuristic on any LLM error
+        epics = llm.heuristic_group_into_epics(texts)
+    for it, epic in zip(items, epics):
+        it["epic"] = epic
+
     return [DecomposedRequirement(**it) for it in items]
 
 

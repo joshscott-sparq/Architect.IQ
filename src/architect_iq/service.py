@@ -89,11 +89,18 @@ class EstimateService:
         references = find_references(prd_text, context, graph.matched_pattern_ids, past)
         return graph, references
 
-    def recalculate_from_context(self, estimate_id: str, panel, use_llm: bool | None = None) -> tuple[StoredEstimate, list[Reference]]:
+    def recalculate_from_context(
+        self, estimate_id: str, panel, use_llm: bool | None = None,
+    ) -> tuple[StoredEstimate, list[Reference]]:
         """Save the Context Panel and re-estimate from it (auto-recalc, in place).
 
         Requirements entries form the PRD; risks/accelerators/assumptions and
-        phases flow through the build. Tags are preserved.
+        phases flow through the build. Tags are preserved. `panel.pinned_work_items`
+        (D25: items classified from a just-dropped document) are re-appended to
+        the rebuilt work_items on *every* call, not just the one that added
+        them — recalculate_from_context always rebuilds work_items from scratch,
+        so a one-shot append would get silently discarded the next time any
+        other Context Panel edit triggers this same auto-recalc.
         """
         stored = self.repo.get(estimate_id)
         if stored is None:
@@ -105,6 +112,8 @@ class EstimateService:
             prd = "\n".join(f"- {r.text}" for r in stored.graph.requirements) or "(no requirements yet)"
         graph, references = self._build_graph(stored.graph.project_name, prd, stored.graph.client_context, context_panel=panel, use_llm=use_llm)
         graph.tags = list(stored.graph.tags)
+        if panel.pinned_work_items:
+            graph.work_items = [*graph.work_items, *panel.pinned_work_items]
         saved = self.repo.overwrite_latest(estimate_id, graph)
         return saved, references
 
