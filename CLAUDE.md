@@ -60,8 +60,8 @@ projection of a single `SolutionGraph` (`models/solution_graph.py`):
 `requirements → capabilities → components → work items → effort → team → cost`, plus
 `context_panel`, `complexity_factors`, `scenarios`, `matched_pattern_ids`,
 `deterministic`/`monte_carlo`/`reconciliation` results, and `assumptions`. Change one
-node and every downstream projection (diagram, cost, timeline) is rebuilt from it — this
-is why there's no "Generate" button in the UI; editing context just rebuilds the graph.
+node and every downstream projection (diagram, cost, timeline) is rebuilt from it —
+editing context just rebuilds the graph in place.
 (D8: this replaced an earlier flat `EstimateModel`; the legacy calibration workbook is a
 reference for defaults, not a contract the math must replicate exactly — D8, D10.)
 
