@@ -33,22 +33,45 @@ every artifact is a projection of one object. See
   into stories for a finer rollup.
 - Sub-linear team velocity (diminishing returns) so more engineers shorten the
   timeline without looking artificially cheaper.
+- **Work breakdown grid**: the generated Epic/Feature/Story rows (R/O/P points,
+  Phase, Practice) are directly hand-editable and auto-save — add/remove rows,
+  size at whichever level fits, link a row to a Phase, and pick a Practice
+  from the active rate card rather than free text.
 
 **Context Panel** (bottom-docked, collapsible)
-- Six tabs — Requirements, Phases, Risks, Accelerators, Assumptions, External
-  Sources — each a list of entries added by manual text, dropped file, or URL.
+- Seven tabs — Requirements, Phases, Risks, Accelerators, Assumptions,
+  Reference Estimates, External Sources — each an editable grid of entries
+  added by manual text, dropped file, or URL. Complexity factors derived from
+  context show as a read-only block alongside Risks.
 - Risks/Accelerators/Assumptions carry a scope (entire estimate or a phase);
   risks reduce velocity, accelerators offset it, assumptions are recorded.
+- Reference Estimates surfaces similar past estimates from memory, recomputed
+  every time the estimate is opened (not just at creation).
 - External Sources (SparqOS default read-only, plus SpecKit/GitHub/Salesforce/
   Notion/Slack/Other) — configurable connections with status; data pull stubbed
   pending credentials.
-- Editing context auto-recalculates the estimate above (the Output Zone).
+- Editing context auto-recalculates the estimate above, whose own Estimate /
+  Shape It / Outputs tabs separate the number itself from the levers that
+  shape it and the artifacts it produces.
 
 **Context ingestion**
 - Drag-and-drop or paste: `.md/.txt`, `.docx`, `.pdf`, `.xlsx`, `.csv`, and images.
 - With an API key, Claude extracts requirements, derives capabilities, matches
   patterns, and reads architecture diagrams / requirement images (vision).
   Without a key, deterministic heuristics run the whole pipeline.
+- Dropped documents are checked against what's already captured — a
+  near-duplicate requirement is grouped with its match and flagged rather
+  than silently added or dropped.
+
+**Semantic layer**
+- A taxonomy-driven classifier (`data/estimate_kinds.yaml`) distinguishes what
+  a piece of extracted text *is* — epic, feature, story, story point, risk,
+  assumption, accelerator, or phase — each with a definition and a pairwise
+  disambiguation rule against its most confusable neighbor (risk vs.
+  assumption, epic vs. phase, feature vs. accelerator). Same
+  LLM-with-deterministic-fallback pattern as the rest of ingestion. Built as a
+  standalone model; not yet wired to auto-route context (see
+  [`DECISIONS.md`](DECISIONS.md) D25).
 
 **Scenarios & advisor**
 - **AI Tiers**: a 5-tier human-to-AI-agent ratio ladder (Tier 1 fully manual through
@@ -61,10 +84,8 @@ every artifact is a projection of one object. See
   and features to defer to a later release, grounded in historical estimates.
 
 **UI**
-- Light and dark mode (toggle in the avatar menu; follows OS by default).
-- Orange-initial user avatar; top-bar hamburger nav + account menu.
-- Google-Drive-style **Share** at the top of an estimate; collapsible sections;
-  comments at the bottom; editable metadata **tags**.
+- Light/dark mode, collapsible sections, Google-Drive-style **Share** at the
+  top of an estimate, comments, and editable **tags**.
 
 **Rate cards & deal-shaping**
 - Multiple saved rate cards (one active, one default); upload `.csv/.xlsx/.yaml`.
@@ -93,15 +114,10 @@ every artifact is a projection of one object. See
 
 **Demo mode** — `./dev.sh demo` (or `npm run demo` in `frontend/`) auto-logs in
 as admin and loads curated sample data covering every feature: three roles,
-accounts/opportunities (with Salesforce ids + Notion refs), three distinct
-architectures, memory/prior tuning, versioning,
-scenarios, a shared estimate, a public link, comments, tags, a clone, and two rate
-cards. The lead estimate has a fully-populated **Context Panel** — all six tabs
-(requirements from manual text and a file, scoped risks, an accelerator, an
-assumption, Discovery/MVP/V1 phases, and external sources wired to the
-opportunity's real Salesforce/Notion links plus a needs-auth source) — so the panel
-is exercised end to end. On a fresh database the data is seeded automatically; if a
-demo DB carries prior manual-test residue, reseed a clean one.
+accounts/opportunities, three distinct architectures, memory/prior tuning,
+versioning, scenarios, sharing, comments, tags, and a fully-populated
+**Context Panel** exercising every tab. Seeds automatically on a fresh
+database.
 
 ## Sample logins (dev)
 
@@ -123,7 +139,7 @@ see those estimates read-only.
 |-------|----------|--------------|
 | Core engine | `src/architect_iq/core/` | matcher, estimation, Monte Carlo, recompute, scenarios, advisor, rates, velocity, vision, llm |
 | Models | `src/architect_iq/models/` | Solution Graph, work items, patterns, scenarios |
-| Data (versioned) | `src/architect_iq/data/` | t-shirt scale, variables, complexity factors, patterns, dev models, pricing |
+| Data (versioned) | `src/architect_iq/data/` | t-shirt scale, variables, complexity factors, patterns, dev models, pricing, estimate-kind taxonomy |
 | Persistence | `src/architect_iq/persistence/` | SQLite: versioned graphs + rate cards |
 | Memory | `src/architect_iq/memory/` | reference-class retrieval + pattern-prior tuning |
 | API | `src/architect_iq/api/` | FastAPI |
@@ -216,14 +232,13 @@ backend is an ASGI app.
 cd frontend && npm ci && npm run build
 ```
 
-Serve `frontend/dist/` from any static host (S3+CloudFront, Nginx, Netlify, etc.),
-or with `npm run prod` for a local production preview. Point the frontend's `/api`
-at the backend (reverse-proxy `/api` to the backend host, or set an API base URL).
-The app uses client-side routing (react-router), so the host must fall back to
-`index.html` for unknown paths (e.g. a direct load of `/estimates/abc123`) — a
-CloudFront custom error response, Nginx `try_files ... /index.html`, or Netlify's
-`_redirects` `/* /index.html 200`, depending on host. `npm run prod`'s `vite
-preview` does this automatically.
+Serve `frontend/dist/` from any static host, or `npm run prod` for a local
+production preview. Point `/api` at the backend (reverse-proxy or an API base
+URL). The app uses client-side routing (react-router), so the host must fall
+back to `index.html` for unknown paths (e.g. a direct load of
+`/estimates/abc123`) — `npm run prod`'s `vite preview` does this
+automatically; check your host's docs for the equivalent (CloudFront custom
+error responses, Nginx `try_files`, Netlify `_redirects`, etc.).
 
 **2. Run the backend** (no `--reload` in production; use multiple workers):
 
