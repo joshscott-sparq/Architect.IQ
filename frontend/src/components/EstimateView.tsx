@@ -271,16 +271,16 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                             ) : wi.level}
                           </td>
                           <td className={TD}>
-                            {canEdit ? <input className="field !w-32 !py-1 text-[12px]" value={wi.epic} onChange={(e) => updateItem(wi.id, { epic: e.target.value })} /> : wi.epic}
+                            {canEdit ? <input className="field !w-44 !py-1 text-[12px]" value={wi.epic} onChange={(e) => updateItem(wi.id, { epic: e.target.value })} /> : wi.epic}
                           </td>
                           <td className={TD}>
                             {canEdit
-                              ? (wi.level !== "epic" && <input className="field !w-32 !py-1 text-[12px]" value={wi.feature ?? ""} onChange={(e) => updateItem(wi.id, { feature: e.target.value })} />)
+                              ? (wi.level !== "epic" && <input className="field !w-40 !py-1 text-[12px]" value={wi.feature ?? ""} onChange={(e) => updateItem(wi.id, { feature: e.target.value })} />)
                               : (wi.feature ?? "")}
                           </td>
                           <td className={TD}>
                             {canEdit
-                              ? (wi.level === "story" && <input className="field !w-32 !py-1 text-[12px]" value={wi.story ?? ""} onChange={(e) => updateItem(wi.id, { story: e.target.value })} />)
+                              ? (wi.level === "story" && <input className="field !w-40 !py-1 text-[12px]" value={wi.story ?? ""} onChange={(e) => updateItem(wi.id, { story: e.target.value })} />)
                               : (wi.story ?? "")}
                           </td>
                           <td className={TD}>
@@ -300,7 +300,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                           </td>
                           <td className={TD}>
                             {canEdit ? (
-                              <select className="field !w-32 !py-1 text-[12px]" value={wi.phase_id ?? ""} onChange={(e) => updateItem(wi.id, { phase_id: e.target.value || null })}>
+                              <select className="field !w-36 !py-1 text-[12px]" value={wi.phase_id ?? ""} onChange={(e) => updateItem(wi.id, { phase_id: e.target.value || null })}>
                                 <option value="">—</option>
                                 {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                               </select>
@@ -308,7 +308,7 @@ export function EstimateView({ initial, canEdit = true, canComment = true, canCl
                           </td>
                           <td className={TD + " text-muted"}>
                             {canEdit ? (
-                              <select className="field !w-32 !py-1 text-[12px]" value={wi.practice ?? ""} onChange={(e) => updateItem(wi.id, { practice: e.target.value || null })}>
+                              <select className="field !w-40 !py-1 text-[12px]" value={wi.practice ?? ""} onChange={(e) => updateItem(wi.id, { practice: e.target.value || null })}>
                                 <option value="">—</option>
                                 {wi.practice && !practices.includes(wi.practice) && <option value={wi.practice}>{wi.practice}</option>}
                                 {practices.map((p) => <option key={p} value={p}>{p}</option>)}
