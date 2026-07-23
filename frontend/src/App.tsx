@@ -126,7 +126,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className={"max-w-[1180px] mx-auto px-5 sm:px-7 pt-6 " + (isEstimatePage ? (ctxCollapsed ? "pb-24" : "pb-[46vh]") : "pb-16")}>
+      <main className={"max-w-[1440px] mx-auto px-5 sm:px-7 pt-6 " + (isEstimatePage ? (ctxCollapsed ? "pb-24" : "pb-[46vh]") : "pb-16")}>
         <Routes>
           <Route path="/" element={<Dashboard userName={user.name} canCreate={!isClient} seeding={demoSeeding} />} />
           <Route path="/opportunities" element={<OpportunitiesList key={listKey} onOpen={(id) => navigate(`/opportunities/${id}`)} seeding={demoSeeding} canCreate={!isClient} />} />

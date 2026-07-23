@@ -140,7 +140,7 @@ export function ContextPanel({ estimateId, initial, references, complexityFactor
 
   return (
     <div className="fixed left-0 right-0 bottom-0 z-30 bg-surface border-t border-line shadow-[0_-8px_24px_rgba(0,0,0,0.08)]" style={{ height: dockHeight }}>
-      <div className="max-w-[1180px] mx-auto">
+      <div className="max-w-[1440px] mx-auto">
         {/* Tab bar (horizontally scrollable) + collapse handle */}
         <div className="flex items-stretch border-b border-line px-5 sm:px-7">
           <div className="flex items-center gap-1.5 pr-3 mr-2 border-r border-line shrink-0">
